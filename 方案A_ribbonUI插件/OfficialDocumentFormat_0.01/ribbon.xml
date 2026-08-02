@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui">
+  <ribbon>
+    <tabs>
+      <tab id="tabOfficialDocumentFormat" label="公文格式">
+        <group id="grpOfficialDocumentAuto" label="全文">
+          <button id="btnOfficialDocumentFormatAll"
+                  label="全文格式化"
+                  size="large"
+                  imageMso="FilePrepareMenu"
+                  onAction="FormatOfficialDocument" />
+        </group>
+        <group id="grpOfficialDocumentSelection" label="选区格式">
+          <button id="btnApplyTitle"
+                  label="套用大标题格式"
+                  imageMso="TextEffectsTransformGallery"
+                  onAction="ApplyTitleFormat" />
+          <button id="btnApplyMainRecipient"
+                  label="套用主送单位格式"
+                  imageMso="MailMergeRecipients"
+                  onAction="ApplyMainRecipientFormat" />
+          <button id="btnApplyBody"
+                  label="套用正文格式"
+                  imageMso="StyleNormal"
+                  onAction="ApplyBodyFormat" />
+          <separator id="sepOfficialDocumentHeading" />
+          <button id="btnApplyLevel1"
+                  label="套用一级标题格式（黑体）"
+                  imageMso="OutlinePromote"
+                  onAction="ApplyLevel1HeadingFormat" />
+          <button id="btnApplyLevel2"
+                  label="套用二级标题格式（楷体加粗）"
+                  imageMso="OutlineDemote"
+                  onAction="ApplyLevel2HeadingFormat" />
+          <button id="btnApplyLevel3"
+                  label="套用三级标题格式（仿宋加粗）"
+                  imageMso="Bold"
+                  onAction="ApplyLevel3HeadingFormat" />
+          <button id="btnApplyLevel4"
+                  label="套用四级标题格式（仿宋）"
+                  imageMso="ListNumbering"
+                  onAction="ApplyLevel4HeadingFormat" />
+          <separator id="sepOfficialDocumentSpecial" />
+          <button id="btnApplyYiShi"
+                  label="套用&quot;一是/二是&quot;格式"
+                  imageMso="Bold"
+                  onAction="ApplyYiShiFormat" />
+          <button id="btnApplyDate"
+                  label="套用日期格式"
+                  imageMso="DateAndTimeInsert"
+                  onAction="ApplyDateFormat" />
+          <button id="btnApplySignature"
+                  label="套用署名格式"
+                  imageMso="SignatureLineInsert"
+                  onAction="ApplySignatureFormat" />
+          <button id="btnApplyAttachmentNote"
+                  label="套用附件说明格式"
+                  imageMso="AttachFile"
+                  onAction="ApplyAttachmentNoteFormat" />
+          <button id="btnApplyAttachmentNoteContinuation"
+                  label="套用附件说明续行格式"
+                  imageMso="IndentIncreaseWord"
+                  onAction="ApplyAttachmentNoteContinuationFormat" />
+          <button id="btnApplyAttachmentSequence"
+                  label="套用附件序号格式"
+                  imageMso="Numbering"
+                  onAction="ApplyAttachmentSequenceFormat" />
+          <button id="btnApplyAttachmentTitle"
+                  label="套用附件标题格式"
+                  imageMso="FileDocumentInspect"
+                  onAction="ApplyAttachmentTitleFormat" />
+        </group>
+        <group id="grpOfficialDocumentPage" label="页码">
+          <button id="btnApplyPageNumber"
+                  label="设置居中页码"
+                  imageMso="PageNumbersInsert"
+                  onAction="ApplyPageNumberFormat" />
+        </group>
+      </tab>
+    </tabs>
+  </ribbon>
+</customUI>
