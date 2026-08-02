@@ -72,7 +72,7 @@
   }
 
   function hasSerialPrefix(text) {
-    return /^([一二三四五六七八九十百]+、|（[一二三四五六七八九十百]+）|\d+\.|（\d+）)/.test(trimText(text));
+    return /^([一二三四五六七八九十百]+、|[（(][一二三四五六七八九十百]+[）)]|\d+[.．]|[（(]\d+[）)])/.test(trimText(text));
   }
 
   function isCenteredParagraph(meta) {
@@ -95,9 +95,9 @@
     var len = visibleLength(s);
     if (len < 2 || len > 40 || endsWithPeriod(s)) return null;
     if (/^[一二三四五六七八九十百]+、/.test(s)) return "level1";
-    if (/^（[一二三四五六七八九十百]+）/.test(s)) return "level2";
-    if (/^\d+\./.test(s)) return "level3";
-    if (/^（\d+）/.test(s)) return "level4";
+    if (/^[（(][一二三四五六七八九十百]+[）)]/.test(s)) return "level2";
+    if (/^\d+[.．]/.test(s)) return "level3";
+    if (/^[（(]\d+[）)]/.test(s)) return "level4";
     return null;
   }
 
@@ -113,7 +113,7 @@
   function yiShiMatches(text) {
     var s = String(text === null || text === undefined ? "" : text).replace(/[\r\n\u0007\f]+$/g, "");
     var matches = [];
-    var re = /(^|[，。；;、\s])([一二三四五六七八九十]+是)(?!否)/g;
+    var re = /(^|[，。；;、：:\s])([一二三四五六七八九十]+是)(?!否)/g;
     var match;
     while ((match = re.exec(s)) !== null) {
       matches.push({ start: match.index + match[1].length, length: match[2].length, text: match[2] });
@@ -161,6 +161,7 @@
   function paragraphMeta(paragraph, index) {
     var text = "";
     var align = CONST.WD_ALIGN_LEFT;
+    var leftIndent = 0;
     var hasBreak = false;
     try {
       text = paragraph.Range.Text;
@@ -168,12 +169,21 @@
     } catch (e1) {}
     try {
       align = paragraph.Range.ParagraphFormat.Alignment;
+      leftIndent = paragraph.Range.ParagraphFormat.LeftIndent;
     } catch (e2) {
       try {
         align = paragraph.Alignment;
       } catch (e3) {}
     }
-    return { paragraph: paragraph, index: index, text: trimText(text), rawText: text, align: align, hasBreak: hasBreak };
+    return {
+      paragraph: paragraph,
+      index: index,
+      text: trimText(text),
+      rawText: text,
+      align: align,
+      leftIndent: leftIndent,
+      hasBreak: hasBreak
+    };
   }
 
   function collectionToArray(collection) {
@@ -195,23 +205,46 @@
 
   function findTitleIndexes(items) {
     var indexes = findTitleIndexesWithMode(items, false);
-    if (!indexes.length) indexes = findTitleIndexesWithMode(items, true);
+    if (indexes.length) return indexes;
+    indexes = findTitleIndexesWithMode(items, true);
+    if (!indexes.length || indexes[0] !== firstNonEmptyItemIndex(items)) return [];
+    if (!hasMainRecipientImmediatelyAfter(items, indexes)) return [];
     return indexes;
+  }
+
+  function firstNonEmptyItemIndex(items) {
+    for (var i = 0; i < items.length; i++) {
+      if (trimText(items[i].text)) return i;
+    }
+    return -1;
+  }
+
+  function hasMainRecipientImmediatelyAfter(items, titleIndexes) {
+    var start = titleIndexes[titleIndexes.length - 1] + 1;
+    for (var i = start; i < items.length; i++) {
+      var text = trimText(items[i].text);
+      if (!text) continue;
+      return endsWithColon(text);
+    }
+    return false;
   }
 
   function findTitleIndexesWithMode(items, allowUncentered) {
     var indexes = [];
     var nonEmptySeen = 0;
     var started = false;
+    var firstNonEmpty = firstNonEmptyItemIndex(items);
+    if (firstNonEmpty < 0) return indexes;
     for (var i = 0; i < items.length && nonEmptySeen < 10; i++) {
       var text = trimText(items[i].text);
       if (!text) continue;
       nonEmptySeen++;
       if (!started) {
+        if (i !== firstNonEmpty) return [];
         if (isTitleCandidate(items[i], false, allowUncentered)) {
           indexes.push(i);
           started = true;
-        }
+        } else return [];
       } else if (isTitleCandidate(items[i], true, allowUncentered)) {
         indexes.push(i);
       } else {
@@ -232,9 +265,10 @@
     return -1;
   }
 
-  function findDateIndex(items) {
+  function findDateIndex(items, endIndex) {
     var idx = -1;
-    for (var i = 0; i < items.length; i++) {
+    var end = typeof endIndex === "number" && endIndex >= 0 ? endIndex : items.length;
+    for (var i = 0; i < end; i++) {
       if (isDateText(items[i].text)) idx = i;
     }
     return idx;
@@ -282,28 +316,44 @@
     return indexes;
   }
 
-  function findAttachmentBody(items, dateIndex) {
+  function paragraphLeftIndent(meta) {
+    var value = Number(meta && meta.leftIndent);
+    return isNaN(value) ? 0 : value;
+  }
+
+  function isTopLevelAttachmentSequence(meta) {
+    return isAttachmentSequence(meta && meta.text) && Math.abs(paragraphLeftIndent(meta)) <= 2;
+  }
+
+  function isAttachmentTitleCandidate(meta) {
+    var text = trimText(meta && meta.text);
+    var len = visibleLength(text);
+    if (!text || len > 50) return false;
+    if (isAttachmentSequence(text) || isDateText(text) || hasSerialPrefix(text)) return false;
+    if (endsWithColon(text) || endsWithPeriod(text)) return false;
+    return isCenteredParagraph(meta) || len >= 2;
+  }
+
+  function findAttachmentBody(items) {
     var sequenceIndexes = [];
     var titleIndexes = [];
     var afterBreak = false;
     for (var i = 0; i < items.length; i++) {
       if (items[i].hasBreak) afterBreak = true;
-      if (dateIndex >= 0 && i <= dateIndex) continue;
       var text = trimText(items[i].text);
-      if (!text) {
-        if (i > dateIndex) afterBreak = true;
-        continue;
-      }
-      if ((afterBreak || dateIndex >= 0) && isAttachmentSequence(text)) {
+      if (!text) continue;
+      if (afterBreak && isTopLevelAttachmentSequence(items[i])) {
         sequenceIndexes.push(i);
         for (var j = i + 1; j < items.length; j++) {
           if (trimText(items[j].text)) {
-            titleIndexes.push(j);
+            if (isAttachmentTitleCandidate(items[j])) titleIndexes.push(j);
             break;
           }
         }
         afterBreak = false;
+        continue;
       }
+      afterBreak = false;
     }
     return { sequenceIndexes: sequenceIndexes, titleIndexes: titleIndexes };
   }
@@ -312,11 +362,12 @@
     ensureOfficialDocumentFormatter();
     var titleIndexes = findTitleIndexes(items);
     var mainRecipientIndex = findMainRecipientIndex(items, titleIndexes);
-    var dateIndex = findDateIndex(items);
+    var attachmentBody = findAttachmentBody(items);
+    var attachmentStartIndex = attachmentBody.sequenceIndexes.length ? attachmentBody.sequenceIndexes[0] : items.length;
+    var dateIndex = findDateIndex(items, attachmentStartIndex);
     var signatureIndex = findSignatureIndex(items, dateIndex);
     var attachmentNoteIndexes = findAttachmentNoteIndexes(items, dateIndex);
     var attachmentNoteContinuationIndexes = findAttachmentNoteContinuationIndexes(items, dateIndex, attachmentNoteIndexes);
-    var attachmentBody = findAttachmentBody(items, dateIndex);
     var start = mainRecipientIndex >= 0 ? mainRecipientIndex + 1 : (titleIndexes.length ? titleIndexes[titleIndexes.length - 1] + 1 : 0);
     var end = dateIndex >= 0 ? dateIndex : items.length;
     var headings = {};
@@ -503,20 +554,21 @@
     try { paragraph.Range.HighlightColorIndex = 0; } catch (e3) {}
   }
 
-  function applyYiShi(paragraph) {
+  function applyYiShi(paragraph, preserveBaseFormat) {
     if (!paragraph || !canFormatParagraph(paragraph)) return;
     var rawText = "";
     try { rawText = String(paragraph.Range.Text || ""); } catch (e1) {}
     rawText = rawText.replace(/[\r\n\u0007\f]+$/g, "");
     var matches = yiShiMatches(rawText);
     if (!matches.length) return;
-    applyNamedFormat(paragraph, "body");
+    if (!preserveBaseFormat) applyNamedFormat(paragraph, "body");
     try {
       var start = paragraph.Range.Start;
       for (var i = 0; i < matches.length; i++) {
         var marker = paragraph.Range.Duplicate;
         marker.SetRange(start + matches[i].start, start + matches[i].start + matches[i].length);
-        setFont(marker, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, true);
+        if (preserveBaseFormat) marker.Font.Bold = true;
+        else setFont(marker, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, true);
       }
     } catch (e2) {}
   }
@@ -609,28 +661,6 @@
       if (!canFormatParagraph(items[i].paragraph)) continue;
       setFont(items[i].paragraph.Range, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, false);
       setParagraph(items[i].paragraph, CONST.WD_ALIGN_LEFT, 0, 0, 0);
-    }
-  }
-
-  function applyOpeningWithoutMainRecipient(items, result) {
-    if (result.mainRecipientIndex >= 0 || !result.titleIndexes.length) return;
-    for (var t = 0; t < result.titleIndexes.length; t++) {
-      applyNamedFormat(items[result.titleIndexes[t]].paragraph, "title");
-    }
-    var start = result.titleIndexes[result.titleIndexes.length - 1] + 1;
-    var end = result.dateIndex >= 0 ? result.dateIndex : items.length;
-    for (var i = start; i < end; i++) {
-      if (!items[i] || !trimText(items[i].text)) continue;
-      if (i === result.signatureIndex) continue;
-      if (result.attachmentNoteIndexes.indexOf(i) >= 0 || result.attachmentNoteContinuationIndexes.indexOf(i) >= 0) continue;
-      if (result.attachmentSequenceIndexes.indexOf(i) >= 0 || result.attachmentTitleIndexes.indexOf(i) >= 0) continue;
-      if (result.headings.hasOwnProperty(i)) {
-        applyNamedFormat(items[i].paragraph, result.headings[i]);
-      } else if (result.yiShiIndexes.indexOf(i) >= 0) {
-        applyYiShi(items[i].paragraph);
-      } else if (result.bodyIndexes.indexOf(i) >= 0) {
-        applyNamedFormat(items[i].paragraph, "body");
-      }
     }
   }
 
@@ -756,11 +786,7 @@
     }
     if (askYesNo("是否先清除全文格式？", "公文格式")) {
       for (var c = 0; c < items.length; c++) clearParagraph(items[c].paragraph);
-      items = documentItems(doc);
-      result = classifyDocument(items);
     }
-    items = documentItems(doc);
-    result = classifyDocument(items);
 
     for (var i = 0; i < result.titleIndexes.length; i++) applyNamedFormat(items[result.titleIndexes[i]].paragraph, "title");
     formatBlankLinesBeforeTitle(items, result);
@@ -790,9 +816,8 @@
       applyNamedFormat(items[result.bodyIndexes[b]].paragraph, "body");
     }
     for (var y = 0; y < result.yiShiIndexes.length; y++) {
-      applyYiShi(items[result.yiShiIndexes[y]].paragraph);
+      applyYiShi(items[result.yiShiIndexes[y]].paragraph, true);
     }
-    applyOpeningWithoutMainRecipient(items, result);
     applyCenteredPageNumbers(doc);
     alertMessage("格式化完成");
   }
