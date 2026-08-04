@@ -897,6 +897,28 @@
     } catch (e1) {}
   }
 
+  function trimTrailingEmptyFooterParagraphs(footer) {
+    if (!footer) return;
+    var paragraphs = [];
+    try { paragraphs = collectionToArray(footer.Range.Paragraphs); } catch (e1) {}
+    if (paragraphs.length < 2) return;
+    var lastContentIndex = -1;
+    for (var i = 0; i < paragraphs.length; i++) {
+      var text = "";
+      var fieldCount = 0;
+      try { text = trimText(paragraphs[i].Range.Text); } catch (e2) {}
+      try { fieldCount = Number(paragraphs[i].Range.Fields.Count) || 0; } catch (e3) {}
+      if (text || fieldCount > 0) lastContentIndex = i;
+    }
+    if (lastContentIndex < 0 || lastContentIndex >= paragraphs.length - 1) return;
+    try {
+      var trailingRange = footer.Range.Duplicate;
+      trailingRange.Start = paragraphs[lastContentIndex].Range.End;
+      trailingRange.End = footer.Range.End;
+      trailingRange.Text = "";
+    } catch (e4) {}
+  }
+
   function applyCenteredPageNumbers(doc) {
     ensureOfficialDocumentFormatter();
     var sections = collectionToArray(doc.Sections);
@@ -926,6 +948,7 @@
             if (isPageField(fields[f])) formatPageField(fields[f], alignment);
           }
         } catch (e4) {}
+        trimTrailingEmptyFooterParagraphs(footer);
       }
     }
   }
