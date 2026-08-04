@@ -8,10 +8,10 @@
   function ensureOfficialDocumentFormatter() {
     if (CONST) return;
     CONST = {};
-    CONST.FONT_BODY = "\u4eff\u5b8b";
-    CONST.FONT_TITLE = "\u5b8b\u4f53";
+    CONST.FONT_BODY = "\u4eff\u5b8b_GB2312";
+    CONST.FONT_TITLE = "\u65b9\u6b63\u5c0f\u6807\u5b8b\u7b80\u4f53";
     CONST.FONT_LEVEL1 = "\u9ed1\u4f53";
-    CONST.FONT_LEVEL2 = "\u6977\u4f53";
+    CONST.FONT_LEVEL2 = "\u6977\u4f53_GB2312";
     CONST.FONT_WEST = "Times New Roman";
     CONST.FONT_PAGE_NUMBER = "\u5b8b\u4f53";
     CONST.SIZE_BODY = 16;
@@ -33,6 +33,7 @@
     CONST.WD_HEADER_FOOTER_EVEN_PAGES = 3;
     CONST.WD_FIELD_PAGE = 33;
     CONST.WD_ALIGN_PAGE_NUMBER_LEFT = 0;
+    CONST.WD_ALIGN_PAGE_NUMBER_CENTER = 1;
     CONST.WD_ALIGN_PAGE_NUMBER_RIGHT = 2;
     OfficialDocumentFormatter = {};
     OfficialDocumentFormatter.CONST = CONST;
@@ -50,6 +51,8 @@
     OfficialDocumentFormatter.attachmentNoteContinuationIndent = attachmentNoteContinuationIndent;
     OfficialDocumentFormatter.signatureLeftIndent = signatureLeftIndent;
     OfficialDocumentFormatter.classifyDocument = classifyDocument;
+    OfficialDocumentFormatter.formatTableFonts = formatTableFonts;
+    OfficialDocumentFormatter.formatFootnoteFonts = formatFootnoteFonts;
   }
 
   function trimText(text) {
@@ -464,6 +467,17 @@
     try { font.Bold = bold ? true : false; } catch (e7) {}
   }
 
+  function setScriptFonts(range, cnFont, westFont) {
+    if (!range) return;
+    var font;
+    try { font = range.Font; } catch (e1) { return; }
+    try { font.Name = cnFont; } catch (e2) {}
+    try { font.NameFarEast = cnFont; } catch (e3) {}
+    try { font.NameAscii = westFont; } catch (e4) {}
+    try { font.NameOther = westFont; } catch (e5) {}
+    try { font.NameBi = westFont; } catch (e6) {}
+  }
+
   function setParagraph(paragraph, align, leftIndent, firstLineIndent, rightIndent) {
     var pf = paragraph.Range.ParagraphFormat;
     try { pf.Alignment = align; } catch (e1) {}
@@ -483,6 +497,28 @@
     try { font.NameAscii = fontName; } catch (e3) {}
     try { font.NameOther = fontName; } catch (e4) {}
     try { font.NameBi = fontName; } catch (e5) {}
+  }
+
+  function formatTableFonts(doc) {
+    if (!doc) return;
+    var tables = [];
+    try { tables = collectionToArray(doc.Tables); } catch (e1) {}
+    for (var i = 0; i < tables.length; i++) {
+      try { setScriptFonts(tables[i].Range, CONST.FONT_BODY, CONST.FONT_WEST); } catch (e2) {}
+    }
+  }
+
+  function formatNoteCollection(notes) {
+    var items = collectionToArray(notes);
+    for (var i = 0; i < items.length; i++) {
+      try { setScriptFonts(items[i].Range, CONST.FONT_BODY, CONST.FONT_WEST); } catch (e1) {}
+    }
+  }
+
+  function formatFootnoteFonts(doc) {
+    if (!doc) return;
+    try { formatNoteCollection(doc.Footnotes); } catch (e1) {}
+    try { formatNoteCollection(doc.Endnotes); } catch (e2) {}
   }
 
   function normalizeParagraphText(paragraph) {
@@ -508,7 +544,7 @@
     var textRange = paragraphTextRange(paragraph);
     if (!textRange) return;
     if (name === "title" || name === "attachmentTitle") {
-      setFont(textRange, CONST.FONT_TITLE, CONST.FONT_WEST, CONST.SIZE_TITLE, true);
+      setFont(textRange, CONST.FONT_TITLE, CONST.FONT_WEST, CONST.SIZE_TITLE, false);
       setParagraph(paragraph, CONST.WD_ALIGN_CENTER, 0, 0, 0);
       return;
     }
@@ -819,7 +855,7 @@
     var setup = null;
     try { setup = section.PageSetup; } catch (e1) {}
     if (!setup) return;
-    try { setup.OddAndEvenPagesHeaderFooter = true; } catch (e2) {}
+    try { setup.OddAndEvenPagesHeaderFooter = false; } catch (e2) {}
     var bottomMargin = millimetersToPoints(35);
     try {
       var currentBottomMargin = Number(setup.BottomMargin);
@@ -834,10 +870,12 @@
     try { setup.FooterDistance = footerDistance; } catch (e4) {}
   }
 
-  function pageNumberAlignment(footerIndex) {
-    return footerIndex === CONST.WD_HEADER_FOOTER_EVEN_PAGES ?
-      CONST.WD_ALIGN_PAGE_NUMBER_LEFT :
-      CONST.WD_ALIGN_PAGE_NUMBER_RIGHT;
+  function centeredPageNumberFooterIsEnabled(section, footerIndex) {
+    if (footerIndex === CONST.WD_HEADER_FOOTER_PRIMARY) return true;
+    if (footerIndex === CONST.WD_HEADER_FOOTER_FIRST_PAGE) {
+      try { return !!section.PageSetup.DifferentFirstPageHeaderFooter; } catch (e1) {}
+    }
+    return false;
   }
 
   function formatPageField(field, alignment) {
@@ -850,17 +888,15 @@
         CONST.SIZE_PAGE_NUMBER, false);
       var paragraphFormat = pageRange.ParagraphFormat;
       paragraphFormat.Alignment = alignment;
-      paragraphFormat.LeftIndent = alignment === CONST.WD_ALIGN_PAGE_NUMBER_LEFT ?
-        CONST.PAGE_NUMBER_INDENT_PT : 0;
-      paragraphFormat.RightIndent = alignment === CONST.WD_ALIGN_PAGE_NUMBER_RIGHT ?
-        CONST.PAGE_NUMBER_INDENT_PT : 0;
+      paragraphFormat.LeftIndent = 0;
+      paragraphFormat.RightIndent = 0;
       paragraphFormat.FirstLineIndent = 0;
       paragraphFormat.SpaceBefore = 0;
       paragraphFormat.SpaceAfter = 0;
     } catch (e1) {}
   }
 
-  function applyOfficialPageNumbers(doc) {
+  function applyCenteredPageNumbers(doc) {
     ensureOfficialDocumentFormatter();
     var sections = collectionToArray(doc.Sections);
     var footerIndexes = [
@@ -872,12 +908,12 @@
       configurePageNumberSection(sections[i]);
       for (var j = 0; j < footerIndexes.length; j++) {
         var footerIndex = footerIndexes[j];
-        if (!footerIsEnabled(sections[i], footerIndex)) continue;
         var footer = footerByIndex(sections[i], footerIndex);
         if (!footer) continue;
         try { footer.LinkToPrevious = false; } catch (e1) {}
         removeExistingPageFields(footer);
-        var alignment = pageNumberAlignment(footerIndex);
+        if (!centeredPageNumberFooterIsEnabled(sections[i], footerIndex)) continue;
+        var alignment = CONST.WD_ALIGN_PAGE_NUMBER_CENTER;
         try {
           var pageNumbers = footer.PageNumbers;
           try { pageNumbers.RestartNumberingAtSection = false; } catch (e2) {}
@@ -893,8 +929,8 @@
     }
   }
 
-  function applyCenteredPageNumbers(doc) {
-    applyOfficialPageNumbers(doc);
+  function applyOfficialPageNumbers(doc) {
+    applyCenteredPageNumbers(doc);
   }
 
   function askYesNo(message, title) {
@@ -919,7 +955,7 @@
 
   function formatWholeDocument() {
     ensureOfficialDocumentFormatter();
-    if (!askYesNo("\u5c06\u8c03\u6574\u6807\u9898\u3001\u7a7a\u884c\u3001\u6b63\u6587\u3001\u843d\u6b3e\u548c\u9875\u7801\uff0c\u662f\u5426\u7ee7\u7eed\uff1f", "\u516c\u6587\u683c\u5f0f")) return;
+    if (!askYesNo("\u5c06\u8c03\u6574\u6807\u9898\u3001\u7a7a\u884c\u3001\u6b63\u6587\u3001\u843d\u6b3e\u3001\u8868\u683c\u3001\u811a\u6ce8\u548c\u9875\u7801\uff0c\u662f\u5426\u7ee7\u7eed\uff1f", "\u516c\u6587\u683c\u5f0f")) return;
     var doc = currentDocument();
     var items = documentItems(doc);
     var result = classifyDocument(items);
@@ -969,7 +1005,9 @@
     for (var y = 0; y < result.yiShiIndexes.length; y++) {
       applyYiShi(items[result.yiShiIndexes[y]].paragraph, true);
     }
-    applyOfficialPageNumbers(doc);
+    formatTableFonts(doc);
+    formatFootnoteFonts(doc);
+    applyCenteredPageNumbers(doc);
     alertMessage("\u683c\u5f0f\u5316\u5b8c\u6210");
   }
 
@@ -1020,10 +1058,32 @@
   function ApplyAttachmentNoteContinuationFormat() { applyToSelection("attachmentNoteContinuation"); }
   function ApplyAttachmentSequenceFormat() { applyToSelection("attachmentSequence"); }
   function ApplyAttachmentTitleFormat() { applyToSelection("attachmentTitle"); }
+  function ApplyTableTextFormat() {
+    ensureOfficialDocumentFormatter();
+    formatTableFonts(currentDocument());
+    alertMessage("\u8868\u683c\u5b57\u4f53\u683c\u5f0f\u5316\u5b8c\u6210");
+  }
+  function ApplyFootnoteTextFormat() {
+    ensureOfficialDocumentFormatter();
+    formatFootnoteFonts(currentDocument());
+    alertMessage("\u811a\u6ce8\u548c\u5c3e\u6ce8\u5b57\u4f53\u683c\u5f0f\u5316\u5b8c\u6210");
+  }
   function ApplyPageNumberFormat() {
     ensureOfficialDocumentFormatter();
-    applyOfficialPageNumbers(currentDocument());
+    applyCenteredPageNumbers(currentDocument());
     alertMessage("\u9875\u7801\u683c\u5f0f\u5316\u5b8c\u6210");
+  }
+  function ApplyTableTextFormatSilently() {
+    ensureOfficialDocumentFormatter();
+    formatTableFonts(currentDocument());
+  }
+  function ApplyFootnoteTextFormatSilently() {
+    ensureOfficialDocumentFormatter();
+    formatFootnoteFonts(currentDocument());
+  }
+  function ApplyPageNumberFormatSilently() {
+    ensureOfficialDocumentFormatter();
+    applyCenteredPageNumbers(currentDocument());
   }
 
   function GetOfficialDocumentFormatter() {

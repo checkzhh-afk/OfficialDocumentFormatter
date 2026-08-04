@@ -1,5 +1,6 @@
-/* \u516c\u6587\u683c\u5f0f\u5316 WPS JS \u5b8f
- * \u8fd0\u884c\u73af\u5883\uff1aWPS Office JS \u5b8f\u3002\u83dc\u5355\u6309\u94ae\u901a\u8fc7 customUI.xml \u7ed1\u5b9a\u672c\u6587\u4ef6\u4e2d\u7684\u5168\u5c40\u51fd\u6570\u3002
+/* \u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0 WPS JS \u5b8f
+ * \u72ec\u7acb\u63a7\u5236\u53f0\u65b9\u6848\uff1a\u6267\u884c\u65f6\u9009\u62e9\u76ee\u6807\u6587\u6863\uff0c\u6216\u628a\u5f53\u524d\u6d3b\u52a8\u6587\u6863\u8bbe\u4e3a\u76ee\u6807\u3002
+ * \u539f Ribbon \u65b9\u6848\u4ecd\u4fdd\u7559\u5728\u201c\u65b9\u6848A_ribbonUI\u63d2\u4ef6\u201d\uff0c\u4e24\u5957\u811a\u672c\u4e92\u4e0d\u8986\u76d6\u3002
  */
   /* SHARED_CORE_START */
   var CONST;
@@ -8,10 +9,10 @@
   function ensureOfficialDocumentFormatter() {
     if (CONST) return;
     CONST = {};
-    CONST.FONT_BODY = "\u4eff\u5b8b";
-    CONST.FONT_TITLE = "\u5b8b\u4f53";
+    CONST.FONT_BODY = "\u4eff\u5b8b_GB2312";
+    CONST.FONT_TITLE = "\u65b9\u6b63\u5c0f\u6807\u5b8b\u7b80\u4f53";
     CONST.FONT_LEVEL1 = "\u9ed1\u4f53";
-    CONST.FONT_LEVEL2 = "\u6977\u4f53";
+    CONST.FONT_LEVEL2 = "\u6977\u4f53_GB2312";
     CONST.FONT_WEST = "Times New Roman";
     CONST.FONT_PAGE_NUMBER = "\u5b8b\u4f53";
     CONST.SIZE_BODY = 16;
@@ -33,6 +34,7 @@
     CONST.WD_HEADER_FOOTER_EVEN_PAGES = 3;
     CONST.WD_FIELD_PAGE = 33;
     CONST.WD_ALIGN_PAGE_NUMBER_LEFT = 0;
+    CONST.WD_ALIGN_PAGE_NUMBER_CENTER = 1;
     CONST.WD_ALIGN_PAGE_NUMBER_RIGHT = 2;
     OfficialDocumentFormatter = {};
     OfficialDocumentFormatter.CONST = CONST;
@@ -50,6 +52,8 @@
     OfficialDocumentFormatter.attachmentNoteContinuationIndent = attachmentNoteContinuationIndent;
     OfficialDocumentFormatter.signatureLeftIndent = signatureLeftIndent;
     OfficialDocumentFormatter.classifyDocument = classifyDocument;
+    OfficialDocumentFormatter.formatTableFonts = formatTableFonts;
+    OfficialDocumentFormatter.formatFootnoteFonts = formatFootnoteFonts;
   }
 
   function trimText(text) {
@@ -464,6 +468,17 @@
     try { font.Bold = bold ? true : false; } catch (e7) {}
   }
 
+  function setScriptFonts(range, cnFont, westFont) {
+    if (!range) return;
+    var font;
+    try { font = range.Font; } catch (e1) { return; }
+    try { font.Name = cnFont; } catch (e2) {}
+    try { font.NameFarEast = cnFont; } catch (e3) {}
+    try { font.NameAscii = westFont; } catch (e4) {}
+    try { font.NameOther = westFont; } catch (e5) {}
+    try { font.NameBi = westFont; } catch (e6) {}
+  }
+
   function setParagraph(paragraph, align, leftIndent, firstLineIndent, rightIndent) {
     var pf = paragraph.Range.ParagraphFormat;
     try { pf.Alignment = align; } catch (e1) {}
@@ -483,6 +498,28 @@
     try { font.NameAscii = fontName; } catch (e3) {}
     try { font.NameOther = fontName; } catch (e4) {}
     try { font.NameBi = fontName; } catch (e5) {}
+  }
+
+  function formatTableFonts(doc) {
+    if (!doc) return;
+    var tables = [];
+    try { tables = collectionToArray(doc.Tables); } catch (e1) {}
+    for (var i = 0; i < tables.length; i++) {
+      try { setScriptFonts(tables[i].Range, CONST.FONT_BODY, CONST.FONT_WEST); } catch (e2) {}
+    }
+  }
+
+  function formatNoteCollection(notes) {
+    var items = collectionToArray(notes);
+    for (var i = 0; i < items.length; i++) {
+      try { setScriptFonts(items[i].Range, CONST.FONT_BODY, CONST.FONT_WEST); } catch (e1) {}
+    }
+  }
+
+  function formatFootnoteFonts(doc) {
+    if (!doc) return;
+    try { formatNoteCollection(doc.Footnotes); } catch (e1) {}
+    try { formatNoteCollection(doc.Endnotes); } catch (e2) {}
   }
 
   function normalizeParagraphText(paragraph) {
@@ -508,7 +545,7 @@
     var textRange = paragraphTextRange(paragraph);
     if (!textRange) return;
     if (name === "title" || name === "attachmentTitle") {
-      setFont(textRange, CONST.FONT_TITLE, CONST.FONT_WEST, CONST.SIZE_TITLE, true);
+      setFont(textRange, CONST.FONT_TITLE, CONST.FONT_WEST, CONST.SIZE_TITLE, false);
       setParagraph(paragraph, CONST.WD_ALIGN_CENTER, 0, 0, 0);
       return;
     }
@@ -819,7 +856,7 @@
     var setup = null;
     try { setup = section.PageSetup; } catch (e1) {}
     if (!setup) return;
-    try { setup.OddAndEvenPagesHeaderFooter = true; } catch (e2) {}
+    try { setup.OddAndEvenPagesHeaderFooter = false; } catch (e2) {}
     var bottomMargin = millimetersToPoints(35);
     try {
       var currentBottomMargin = Number(setup.BottomMargin);
@@ -834,10 +871,12 @@
     try { setup.FooterDistance = footerDistance; } catch (e4) {}
   }
 
-  function pageNumberAlignment(footerIndex) {
-    return footerIndex === CONST.WD_HEADER_FOOTER_EVEN_PAGES ?
-      CONST.WD_ALIGN_PAGE_NUMBER_LEFT :
-      CONST.WD_ALIGN_PAGE_NUMBER_RIGHT;
+  function centeredPageNumberFooterIsEnabled(section, footerIndex) {
+    if (footerIndex === CONST.WD_HEADER_FOOTER_PRIMARY) return true;
+    if (footerIndex === CONST.WD_HEADER_FOOTER_FIRST_PAGE) {
+      try { return !!section.PageSetup.DifferentFirstPageHeaderFooter; } catch (e1) {}
+    }
+    return false;
   }
 
   function formatPageField(field, alignment) {
@@ -850,17 +889,15 @@
         CONST.SIZE_PAGE_NUMBER, false);
       var paragraphFormat = pageRange.ParagraphFormat;
       paragraphFormat.Alignment = alignment;
-      paragraphFormat.LeftIndent = alignment === CONST.WD_ALIGN_PAGE_NUMBER_LEFT ?
-        CONST.PAGE_NUMBER_INDENT_PT : 0;
-      paragraphFormat.RightIndent = alignment === CONST.WD_ALIGN_PAGE_NUMBER_RIGHT ?
-        CONST.PAGE_NUMBER_INDENT_PT : 0;
+      paragraphFormat.LeftIndent = 0;
+      paragraphFormat.RightIndent = 0;
       paragraphFormat.FirstLineIndent = 0;
       paragraphFormat.SpaceBefore = 0;
       paragraphFormat.SpaceAfter = 0;
     } catch (e1) {}
   }
 
-  function applyOfficialPageNumbers(doc) {
+  function applyCenteredPageNumbers(doc) {
     ensureOfficialDocumentFormatter();
     var sections = collectionToArray(doc.Sections);
     var footerIndexes = [
@@ -872,12 +909,12 @@
       configurePageNumberSection(sections[i]);
       for (var j = 0; j < footerIndexes.length; j++) {
         var footerIndex = footerIndexes[j];
-        if (!footerIsEnabled(sections[i], footerIndex)) continue;
         var footer = footerByIndex(sections[i], footerIndex);
         if (!footer) continue;
         try { footer.LinkToPrevious = false; } catch (e1) {}
         removeExistingPageFields(footer);
-        var alignment = pageNumberAlignment(footerIndex);
+        if (!centeredPageNumberFooterIsEnabled(sections[i], footerIndex)) continue;
+        var alignment = CONST.WD_ALIGN_PAGE_NUMBER_CENTER;
         try {
           var pageNumbers = footer.PageNumbers;
           try { pageNumbers.RestartNumberingAtSection = false; } catch (e2) {}
@@ -893,8 +930,8 @@
     }
   }
 
-  function applyCenteredPageNumbers(doc) {
-    applyOfficialPageNumbers(doc);
+  function applyOfficialPageNumbers(doc) {
+    applyCenteredPageNumbers(doc);
   }
 
   function askYesNo(message, title) {
@@ -919,7 +956,7 @@
 
   function formatWholeDocument() {
     ensureOfficialDocumentFormatter();
-    if (!askYesNo("\u5c06\u8c03\u6574\u6807\u9898\u3001\u7a7a\u884c\u3001\u6b63\u6587\u3001\u843d\u6b3e\u548c\u9875\u7801\uff0c\u662f\u5426\u7ee7\u7eed\uff1f", "\u516c\u6587\u683c\u5f0f")) return;
+    if (!askYesNo("\u5c06\u8c03\u6574\u6807\u9898\u3001\u7a7a\u884c\u3001\u6b63\u6587\u3001\u843d\u6b3e\u3001\u8868\u683c\u3001\u811a\u6ce8\u548c\u9875\u7801\uff0c\u662f\u5426\u7ee7\u7eed\uff1f", "\u516c\u6587\u683c\u5f0f")) return;
     var doc = currentDocument();
     var items = documentItems(doc);
     var result = classifyDocument(items);
@@ -969,7 +1006,9 @@
     for (var y = 0; y < result.yiShiIndexes.length; y++) {
       applyYiShi(items[result.yiShiIndexes[y]].paragraph, true);
     }
-    applyOfficialPageNumbers(doc);
+    formatTableFonts(doc);
+    formatFootnoteFonts(doc);
+    applyCenteredPageNumbers(doc);
     alertMessage("\u683c\u5f0f\u5316\u5b8c\u6210");
   }
 
@@ -1020,10 +1059,32 @@
   function ApplyAttachmentNoteContinuationFormat() { applyToSelection("attachmentNoteContinuation"); }
   function ApplyAttachmentSequenceFormat() { applyToSelection("attachmentSequence"); }
   function ApplyAttachmentTitleFormat() { applyToSelection("attachmentTitle"); }
+  function ApplyTableTextFormat() {
+    ensureOfficialDocumentFormatter();
+    formatTableFonts(currentDocument());
+    alertMessage("\u8868\u683c\u5b57\u4f53\u683c\u5f0f\u5316\u5b8c\u6210");
+  }
+  function ApplyFootnoteTextFormat() {
+    ensureOfficialDocumentFormatter();
+    formatFootnoteFonts(currentDocument());
+    alertMessage("\u811a\u6ce8\u548c\u5c3e\u6ce8\u5b57\u4f53\u683c\u5f0f\u5316\u5b8c\u6210");
+  }
   function ApplyPageNumberFormat() {
     ensureOfficialDocumentFormatter();
-    applyOfficialPageNumbers(currentDocument());
+    applyCenteredPageNumbers(currentDocument());
     alertMessage("\u9875\u7801\u683c\u5f0f\u5316\u5b8c\u6210");
+  }
+  function ApplyTableTextFormatSilently() {
+    ensureOfficialDocumentFormatter();
+    formatTableFonts(currentDocument());
+  }
+  function ApplyFootnoteTextFormatSilently() {
+    ensureOfficialDocumentFormatter();
+    formatFootnoteFonts(currentDocument());
+  }
+  function ApplyPageNumberFormatSilently() {
+    ensureOfficialDocumentFormatter();
+    applyCenteredPageNumbers(currentDocument());
   }
 
   function GetOfficialDocumentFormatter() {
@@ -1031,3 +1092,799 @@
     return OfficialDocumentFormatter;
   }
   /* SHARED_CORE_END */
+
+  var OfficialDocumentConsole;
+
+  function ensureOfficialDocumentConsole() {
+    if (OfficialDocumentConsole) return;
+    OfficialDocumentConsole = {};
+    OfficialDocumentConsole.controllerDoc = null;
+    OfficialDocumentConsole.targetPath = "";
+    OfficialDocumentConsole.targetDoc = null;
+    OfficialDocumentConsole.selectionStart = -1;
+    OfficialDocumentConsole.selectionEnd = -1;
+    OfficialDocumentConsole.selectionDocPath = "";
+    OfficialDocumentConsole.lastInputAvailable = false;
+    OfficialDocumentConsole.lastFileDialogAvailable = false;
+  }
+
+  function consoleInput(message, defaultValue) {
+    ensureOfficialDocumentConsole();
+    OfficialDocumentConsole.lastInputAvailable = false;
+    try {
+      var globalInputValue = InputBox(message, "\u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0", defaultValue || "");
+      OfficialDocumentConsole.lastInputAvailable = true;
+      return globalInputValue;
+    } catch (e1) {}
+    try {
+      var applicationInputValue = hostApplication().InputBox(message, "\u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0", defaultValue || "");
+      OfficialDocumentConsole.lastInputAvailable = true;
+      return applicationInputValue;
+    } catch (e2) {}
+    return "";
+  }
+
+  function consoleCollectionItem(collection, index) {
+    try { return collection.Item(index); } catch (e1) {}
+    try { return collection(index); } catch (e2) {}
+    try { return collection[index - 1]; } catch (e3) {}
+    return null;
+  }
+
+  function consoleSelectedFile(dialog) {
+    try { return String(dialog.SelectedItems.Item(1)); } catch (e1) {}
+    try { return String(dialog.SelectedItems(1)); } catch (e2) {}
+    try { return String(dialog.SelectedItems[0]); } catch (e3) {}
+    return "";
+  }
+
+  function normalizePath(path) {
+    var value = String(path || "").replace(/^"|"$/g, "").replace(/^\s+|\s+$/g, "");
+    var normalized = "";
+    for (var i = 0; i < value.length; i++) {
+      normalized += value.charAt(i) === String.fromCharCode(92) ? "/" : value.charAt(i);
+    }
+    return normalized;
+  }
+
+  function isWindowsAbsolutePath(path) {
+    return path.length >= 3 &&
+      /[A-Za-z]/.test(path.charAt(0)) &&
+      path.charAt(1) === ":" &&
+      path.charAt(2) === "/";
+  }
+
+  function samePath(a, b) {
+    var left = normalizePath(a);
+    var right = normalizePath(b);
+    if (isWindowsAbsolutePath(left) && isWindowsAbsolutePath(right)) {
+      return left.toLowerCase() === right.toLowerCase();
+    }
+    return left === right;
+  }
+
+  function documentPath(doc) {
+    try { return normalizePath(doc.FullName); } catch (e1) {}
+    return "";
+  }
+
+  function documentName(doc) {
+    try { return String(doc.Name || doc.FullName || "\u672a\u547d\u540d\u6587\u6863"); } catch (e1) {}
+    return "\u672a\u547d\u540d\u6587\u6863";
+  }
+
+  function pathFileName(path) {
+    var normalized = normalizePath(path);
+    var index = normalized.lastIndexOf("/");
+    return index >= 0 ? normalized.substring(index + 1) : normalized;
+  }
+
+  function pathFolder(path) {
+    var normalized = normalizePath(path);
+    var index = normalized.lastIndexOf("/");
+    return index > 0 ? normalized.substring(0, index) : "";
+  }
+
+  function pathExtension(path) {
+    var name = pathFileName(path);
+    var index = name.lastIndexOf(".");
+    return index >= 0 ? name.substring(index).toLowerCase() : "";
+  }
+
+  function isSupportedDocumentPath(path) {
+    var extension = pathExtension(path);
+    return extension === ".doc" ||
+      extension === ".docx" ||
+      extension === ".docm" ||
+      extension === ".wps" ||
+      extension === ".wpt";
+  }
+
+  function isTemporaryDocumentPath(path) {
+    return pathFileName(path).indexOf("~$") === 0;
+  }
+
+  function isConsoleDocumentName(name) {
+    return String(name || "").indexOf("\u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0") >= 0;
+  }
+
+  function sameDocument(left, right) {
+    if (!left || !right) return false;
+    if (left === right) return true;
+    var leftPath = documentPath(left);
+    var rightPath = documentPath(right);
+    return !!leftPath && !!rightPath && samePath(leftPath, rightPath);
+  }
+
+  function documentHasConsoleMacroButton(doc) {
+    if (!doc) return false;
+    var fields;
+    var count = 0;
+    try {
+      fields = doc.Fields;
+      count = Number(fields.Count);
+    } catch (e1) {
+      return false;
+    }
+    for (var i = 1; i <= count; i++) {
+      var field = consoleCollectionItem(fields, i);
+      if (!field) continue;
+      try {
+        if (/MACROBUTTON\s+Console/i.test(String(field.Code.Text || ""))) return true;
+      } catch (e2) {}
+    }
+    return false;
+  }
+
+  function isControllerDocumentPath(path) {
+    var normalized = normalizePath(path);
+    if (!normalized) return false;
+    if (isConsoleDocumentName(pathFileName(normalized))) return true;
+    try {
+      if (OfficialDocumentConsole.controllerDoc &&
+          samePath(documentPath(OfficialDocumentConsole.controllerDoc), normalized)) {
+        return true;
+      }
+    } catch (e1) {}
+    var docs;
+    var count = 0;
+    try {
+      docs = hostApplication().Documents;
+      count = Number(docs.Count);
+    } catch (e2) {
+      return false;
+    }
+    for (var i = 1; i <= count; i++) {
+      var doc = consoleCollectionItem(docs, i);
+      if (!doc || !samePath(documentPath(doc), normalized)) continue;
+      if (documentHasConsoleMacroButton(doc)) return true;
+    }
+    return false;
+  }
+
+  function isDocumentOpen(doc) {
+    if (!doc) return false;
+    try {
+      var ignored = doc.Name;
+      return ignored !== null && ignored !== undefined;
+    } catch (e1) {}
+    return false;
+  }
+
+  function controllerDocument() {
+    ensureOfficialDocumentConsole();
+    if (isDocumentOpen(OfficialDocumentConsole.controllerDoc)) {
+      return OfficialDocumentConsole.controllerDoc;
+    }
+    OfficialDocumentConsole.controllerDoc = null;
+    var active = null;
+    try { active = currentDocument(); } catch (e1) {}
+    if (active && (isConsoleDocumentName(documentName(active)) || documentHasConsoleMacroButton(active))) {
+      OfficialDocumentConsole.controllerDoc = active;
+      return active;
+    }
+    var docs;
+    var count = 0;
+    try {
+      docs = hostApplication().Documents;
+      count = Number(docs.Count);
+    } catch (e2) {
+      return null;
+    }
+    for (var i = 1; i <= count; i++) {
+      var doc = consoleCollectionItem(docs, i);
+      if (!doc) continue;
+      if (isConsoleDocumentName(documentName(doc)) || documentHasConsoleMacroButton(doc)) {
+        OfficialDocumentConsole.controllerDoc = doc;
+        return doc;
+      }
+    }
+    return null;
+  }
+
+  function controllerFolderPath(showError) {
+    var controller = controllerDocument();
+    if (!controller) {
+      if (showError) {
+        alertMessage("\u672a\u627e\u5230\u201c\u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0\u201d\u6587\u6863\u3002\u8bf7\u5148\u6253\u5f00\u6b63\u5f0f DOCM \u63a7\u5236\u53f0\u3002");
+      }
+      return "";
+    }
+    var folder = "";
+    try { folder = normalizePath(controller.Path); } catch (e1) {}
+    if (!folder && showError) {
+      alertMessage("\u63a7\u5236\u53f0\u6587\u6863\u5c1a\u672a\u4fdd\u5b58\u5230\u6587\u4ef6\u5939\u3002\u8bf7\u5148\u4fdd\u5b58 DOCM\uff0c\u518d\u6267\u884c\u540c\u76ee\u5f55\u683c\u5f0f\u5316\u3002");
+    }
+    return folder;
+  }
+
+  function validateTargetPath(path) {
+    if (!path) return false;
+    if (isTemporaryDocumentPath(path)) {
+      alertMessage("\u4e0d\u80fd\u5904\u7406 WPS \u751f\u6210\u7684\u4e34\u65f6\u6587\u4ef6\uff1a\n" + pathFileName(path));
+      return false;
+    }
+    if (!isSupportedDocumentPath(path)) {
+      alertMessage("\u4ec5\u652f\u6301 .doc\u3001.docx\u3001.docm\u3001.wps \u548c .wpt \u6587\u6863\u3002");
+      return false;
+    }
+    if (isControllerDocumentPath(path)) {
+      alertMessage("\u4e0d\u80fd\u628a\u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0\u6587\u6863\u8bbe\u4e3a\u76ee\u6807\u3002");
+      return false;
+    }
+    return true;
+  }
+
+  function pathAlreadyListed(paths, path) {
+    for (var i = 0; i < paths.length; i++) {
+      if (samePath(paths[i], path)) return true;
+    }
+    return false;
+  }
+
+  function discoverSiblingDocumentPaths() {
+    var result = { available: false, folder: "", paths: [], error: "" };
+    var folder = controllerFolderPath(true);
+    if (!folder) return result;
+    result.folder = folder;
+    var patterns = ["*.doc", "*.docx", "*.docm", "*.wps", "*.wpt"];
+    var expectedExtensions = [".doc", ".docx", ".docm", ".wps", ".wpt"];
+    for (var p = 0; p < patterns.length; p++) {
+      try {
+        var search = hostApplication().FileSearch;
+        search.NewSearch();
+        search.LookIn = folder;
+        search.SearchSubFolders = false;
+        search.FileName = patterns[p];
+        search.Execute();
+        result.available = true;
+        var count = Number(search.FoundFiles.Count);
+        for (var i = 1; i <= count; i++) {
+          var found = normalizePath(consoleCollectionItem(search.FoundFiles, i));
+          if (!found || pathExtension(found) !== expectedExtensions[p]) continue;
+          if (isControllerDocumentPath(found) ||
+              isTemporaryDocumentPath(found) ||
+              pathAlreadyListed(result.paths, found)) continue;
+          result.paths.push(found);
+        }
+      } catch (searchError) {
+        result.error = String(searchError.message || searchError);
+      }
+    }
+    result.paths.sort(function (left, right) {
+      var a = pathFileName(left).toLowerCase();
+      var b = pathFileName(right).toLowerCase();
+      if (a < b) return -1;
+      if (a > b) return 1;
+      return 0;
+    });
+    return result;
+  }
+
+  function pickTargetDocumentPath(folder, requireSameFolder) {
+    ensureOfficialDocumentConsole();
+    OfficialDocumentConsole.lastFileDialogAvailable = false;
+    var app = hostApplication();
+    try {
+      var dialog = app.FileDialog(3);
+      if (!dialog) throw new Error("FileDialog unavailable");
+      OfficialDocumentConsole.lastFileDialogAvailable = true;
+      dialog.Title = "\u9009\u62e9\u9700\u8981\u683c\u5f0f\u5316\u7684\u516c\u6587";
+      dialog.AllowMultiSelect = false;
+      try {
+        dialog.Filters.Clear();
+        dialog.Filters.Add("Word/WPS \u6587\u6863", "*.doc;*.docx;*.docm;*.wps;*.wpt");
+      } catch (filterError) {}
+      try {
+        if (folder) dialog.InitialFileName = folder.replace(/\//g, String.fromCharCode(92)) + String.fromCharCode(92);
+      } catch (folderError) {}
+      while (true) {
+        var result = dialog.Show();
+        if (!(result === -1 || result === true || result === 1)) return "";
+        var selected = normalizePath(consoleSelectedFile(dialog));
+        if (!validateTargetPath(selected)) continue;
+        if (requireSameFolder && folder && !samePath(pathFolder(selected), folder)) {
+          alertMessage("\u8bf7\u9009\u62e9\u4e0e\u63a7\u5236\u53f0\u4f4d\u4e8e\u540c\u4e00\u6587\u4ef6\u5939\u7684\u6587\u6863\u3002");
+          continue;
+        }
+        return selected;
+      }
+    } catch (e1) {
+      OfficialDocumentConsole.lastFileDialogAvailable = false;
+    }
+    return "";
+  }
+
+  function chooseSiblingDocumentPath() {
+    var discovery = discoverSiblingDocumentPaths();
+    if (!discovery.folder) return "";
+    if (!discovery.available) {
+      var fallback = pickTargetDocumentPath(discovery.folder, true);
+      if (!fallback) {
+        alertMessage("\u5f53\u524d WPS \u4e0d\u652f\u6301\u81ea\u52a8\u626b\u63cf\u6587\u4ef6\u5939\uff0c\u4e14\u672a\u4ece\u6587\u4ef6\u9009\u62e9\u6846\u9009\u4e2d\u76ee\u6807\u6587\u6863\u3002");
+      }
+      return fallback;
+    }
+    if (!discovery.paths.length) {
+      alertMessage("\u63a7\u5236\u53f0\u6240\u5728\u6587\u4ef6\u5939\u4e2d\u6ca1\u6709\u53ef\u5904\u7406\u7684 .doc\u3001.docx\u3001.docm\u3001.wps \u6216 .wpt \u6587\u6863\u3002");
+      return "";
+    }
+    if (discovery.paths.length === 1) return discovery.paths[0];
+    var selected = pickTargetDocumentPath(discovery.folder, true);
+    if (selected || OfficialDocumentConsole.lastFileDialogAvailable) return selected;
+    var menu = "\u540c\u76ee\u5f55\u68c0\u6d4b\u5230\u591a\u4e2a\u6587\u6863\uff1a\n";
+    for (var i = 0; i < discovery.paths.length; i++) {
+      menu += (i + 1) + "  " + pathFileName(discovery.paths[i]) + "\n";
+    }
+    menu += "\n\u5f53\u524d WPS \u65e0\u6cd5\u6253\u5f00\u539f\u751f\u6587\u4ef6\u9009\u62e9\u6846\uff0c\u8bf7\u8f93\u5165\u5e8f\u53f7\u3002";
+    while (true) {
+      var choice = trimText(consoleInput(menu, ""));
+      if (!choice) {
+        if (!OfficialDocumentConsole.lastInputAvailable) {
+          return pickTargetDocumentPath(discovery.folder, true);
+        }
+        return "";
+      }
+      if (/^\d+$/.test(choice)) {
+        var index = Number(choice) - 1;
+        if (index >= 0 && index < discovery.paths.length) return discovery.paths[index];
+      }
+      alertMessage("\u8bf7\u8f93\u5165\u5217\u8868\u4e2d\u7684\u6709\u6548\u5e8f\u53f7\u3002");
+    }
+  }
+
+  function clearSavedSelection() {
+    ensureOfficialDocumentConsole();
+    OfficialDocumentConsole.selectionStart = -1;
+    OfficialDocumentConsole.selectionEnd = -1;
+    OfficialDocumentConsole.selectionDocPath = "";
+  }
+
+  function rangeBelongsToDocument(range, doc) {
+    if (!range || !doc) return false;
+    try {
+      if (range.Document) return sameDocument(range.Document, doc);
+    } catch (e1) {}
+    return sameDocument(currentDocument(), doc);
+  }
+
+  function documentSelectionRange(doc) {
+    if (!doc) return null;
+    var fallback = null;
+    try {
+      var windows = doc.Windows;
+      var count = windows ? Number(windows.Count) : 0;
+      for (var i = 1; i <= count; i++) {
+        var window = consoleCollectionItem(windows, i);
+        if (!window || !window.Selection) continue;
+        var range = window.Selection.Range;
+        if (!fallback) fallback = range;
+        if (rangeHasSelection(range)) return range;
+      }
+    } catch (e1) {}
+    if (fallback) return fallback;
+    try {
+      if (sameDocument(currentDocument(), doc)) return hostApplication().Selection.Range;
+    } catch (e2) {}
+    return null;
+  }
+
+  function rangeHasSelection(range) {
+    if (!range) return false;
+    try { return Number(range.End) > Number(range.Start); } catch (e1) {}
+    return false;
+  }
+
+  function captureSelectionForDocument(doc, showMessage) {
+    ensureOfficialDocumentConsole();
+    if (!doc) return false;
+    var range = documentSelectionRange(doc);
+    if (!range || !rangeBelongsToDocument(range, doc)) {
+      if (showMessage) {
+        alertMessage("\u5f53\u524d\u9009\u533a\u4e0d\u5c5e\u4e8e\u76ee\u6807\u6587\u6863\u3002\u8bf7\u5207\u6362\u5230\u76ee\u6807\u6587\u6863\u540e\u91cd\u65b0\u9009\u62e9\u6bb5\u843d\u3002");
+      }
+      return false;
+    }
+    var start = -1;
+    var end = -1;
+    try {
+      start = Number(range.Start);
+      end = Number(range.End);
+    } catch (e2) {}
+    if (start < 0 || end <= start) {
+      if (showMessage) {
+        alertMessage("\u8bf7\u5148\u9009\u4e2d\u81f3\u5c11\u4e00\u4e2a\u5b57\u7b26\u6216\u5b8c\u6574\u6bb5\u843d\u3002");
+      }
+      return false;
+    }
+    OfficialDocumentConsole.selectionStart = start;
+    OfficialDocumentConsole.selectionEnd = end;
+    OfficialDocumentConsole.selectionDocPath = documentPath(doc);
+    if (showMessage) alertMessage("\u5df2\u8bc6\u522b\u5e76\u8bb0\u5f55\u6587\u6863\u9009\u533a\uff1a\n" + documentName(doc));
+    return true;
+  }
+
+  function savedSelectionParagraphs(doc) {
+    ensureOfficialDocumentConsole();
+    if (OfficialDocumentConsole.selectionStart < 0 ||
+        OfficialDocumentConsole.selectionEnd <= OfficialDocumentConsole.selectionStart) return [];
+    var savedPath = OfficialDocumentConsole.selectionDocPath;
+    if (savedPath && !samePath(savedPath, documentPath(doc))) return [];
+    try {
+      var range = doc.Range(OfficialDocumentConsole.selectionStart, OfficialDocumentConsole.selectionEnd);
+      return collectionToArray(range.Paragraphs);
+    } catch (e1) {
+      clearSavedSelection();
+      return [];
+    }
+  }
+
+  function openTargetDocuments() {
+    var result = [];
+    var docs;
+    var count = 0;
+    var controller = controllerDocument();
+    try {
+      docs = hostApplication().Documents;
+      count = Number(docs.Count);
+    } catch (e1) {
+      return result;
+    }
+    for (var i = 1; i <= count; i++) {
+      var doc = consoleCollectionItem(docs, i);
+      if (!doc || sameDocument(doc, controller)) continue;
+      if (isControllerDocumentPath(documentPath(doc))) continue;
+      result.push(doc);
+    }
+    return result;
+  }
+
+  function targetDocumentIndex(documents) {
+    ensureOfficialDocumentConsole();
+    for (var i = 0; i < documents.length; i++) {
+      if (sameDocument(documents[i], OfficialDocumentConsole.targetDoc)) return i;
+      if (OfficialDocumentConsole.targetPath &&
+          samePath(documentPath(documents[i]), OfficialDocumentConsole.targetPath)) return i;
+    }
+    return -1;
+  }
+
+  function chooseOpenTargetDocument(requireSelection, actionName) {
+    var documents = openTargetDocuments();
+    if (!documents.length) {
+      alertMessage("\u672a\u627e\u5230\u5df2\u6253\u5f00\u7684\u5f85\u5904\u7406\u6587\u6863\u3002\u8bf7\u5148\u6253\u5f00\u516c\u6587\uff0c\u9700\u8981\u5c40\u90e8\u8c03\u6574\u65f6\u8bf7\u5148\u9009\u4e2d\u6587\u5b57\u3002");
+      return null;
+    }
+    var selectedIndex = 0;
+    if (documents.length > 1) {
+      var menu = "\u5df2\u6253\u5f00\u591a\u4e2a\u6587\u6863\uff0c\u8bf7\u9009\u62e9\u8981\u6267\u884c\u201c" +
+        actionName + "\u201d\u7684\u6587\u6863\uff1a\n";
+      for (var i = 0; i < documents.length; i++) {
+        var range = documentSelectionRange(documents[i]);
+        var status = rangeHasSelection(range) ? "\u5df2\u9009\u4e2d\u6587\u5b57" : "\u672a\u9009\u4e2d\u6587\u5b57";
+        menu += (i + 1) + "  " + documentName(documents[i]) + "  [" + status + "]\n";
+      }
+      var rememberedIndex = targetDocumentIndex(documents);
+      var defaultChoice = rememberedIndex >= 0 ? String(rememberedIndex + 1) : "";
+      while (true) {
+        var choice = trimText(consoleInput(menu, defaultChoice));
+        if (!choice) return null;
+        if (/^\d+$/.test(choice)) {
+          selectedIndex = Number(choice) - 1;
+          if (selectedIndex >= 0 && selectedIndex < documents.length) break;
+        }
+        alertMessage("\u8bf7\u8f93\u5165\u5df2\u6253\u5f00\u6587\u6863\u5217\u8868\u4e2d\u7684\u6709\u6548\u5e8f\u53f7\u3002");
+      }
+    }
+    var doc = documents[selectedIndex];
+    var selectedRange = documentSelectionRange(doc);
+    if (requireSelection && !rangeHasSelection(selectedRange)) {
+      alertMessage("\u6240\u9009\u6587\u6863\u4e2d\u6ca1\u6709\u9009\u4e2d\u6587\u5b57\u3002\u8bf7\u5207\u6362\u5230\u8be5\u6587\u6863\u9009\u4e2d\u6587\u5b57\uff0c\u518d\u56de\u5230\u63a7\u5236\u53f0\u70b9\u51fb\u683c\u5f0f\u6309\u94ae\u3002");
+      return null;
+    }
+    ensureOfficialDocumentConsole();
+    OfficialDocumentConsole.targetDoc = doc;
+    OfficialDocumentConsole.targetPath = documentPath(doc);
+    if (rangeHasSelection(selectedRange)) captureSelectionForDocument(doc, false);
+    else clearSavedSelection();
+    return { doc: doc, range: selectedRange };
+  }
+
+  function findOpenDocumentByPath(path) {
+    var docs;
+    try { docs = hostApplication().Documents; } catch (e1) { return null; }
+    var count = 0;
+    try { count = docs.Count; } catch (e2) { return null; }
+    for (var i = 1; i <= count; i++) {
+      var doc = null;
+      try { doc = docs.Item(i); } catch (itemError) {}
+      if (!doc) continue;
+      try {
+        if (samePath(doc.FullName, path)) return doc;
+      } catch (fullNameError) {}
+    }
+    return null;
+  }
+
+  function openDocumentAtPath(path, activateDocument) {
+    path = normalizePath(path);
+    if (!validateTargetPath(path)) return null;
+    var doc = findOpenDocumentByPath(path);
+    if (!doc) {
+      try {
+        doc = hostApplication().Documents.Open(path);
+      } catch (openError) {
+        alertMessage("\u76ee\u6807\u6587\u6863\u6253\u5f00\u5931\u8d25\uff1a" + String(openError.message || openError));
+        return null;
+      }
+    }
+    ensureOfficialDocumentConsole();
+    OfficialDocumentConsole.targetDoc = doc;
+    OfficialDocumentConsole.targetPath = path;
+    if (activateDocument) {
+      try { doc.Activate(); } catch (activateError) {}
+    }
+    return doc;
+  }
+
+  function openTargetDocument() {
+    ensureOfficialDocumentConsole();
+    var path = normalizePath(OfficialDocumentConsole.targetPath);
+    if (!path) {
+      path = normalizePath(chooseSiblingDocumentPath());
+      OfficialDocumentConsole.targetPath = path;
+    }
+    if (!path) {
+      alertMessage("\u672a\u9009\u62e9\u76ee\u6807\u6587\u6863\u3002");
+      return null;
+    }
+    return openDocumentAtPath(path, true);
+  }
+
+  function targetDocument() {
+    ensureOfficialDocumentConsole();
+    if (OfficialDocumentConsole.targetDoc) {
+      try {
+        OfficialDocumentConsole.targetDoc.Activate();
+        return OfficialDocumentConsole.targetDoc;
+      } catch (e1) {
+        OfficialDocumentConsole.targetDoc = null;
+      }
+    }
+    return openTargetDocument();
+  }
+
+  function runWholeFormatOnDocument(doc) {
+    if (!doc) return;
+    try { doc.Activate(); } catch (e1) {}
+    formatWholeDocument();
+    try { doc.Activate(); } catch (e2) {}
+  }
+
+  function applyTargetSelection(formatName) {
+    var target = chooseOpenTargetDocument(true, "\u5c40\u90e8\u683c\u5f0f\u8c03\u6574");
+    if (!target) return;
+    var paragraphs = [];
+    try { paragraphs = collectionToArray(target.range.Paragraphs); } catch (e1) {}
+    if (!paragraphs.length) {
+      alertMessage("\u65e0\u6cd5\u8bfb\u53d6\u6240\u9009\u6587\u5b57\u6240\u5728\u6bb5\u843d\u3002");
+      return;
+    }
+    applyToParagraphs(paragraphs, formatName, target.doc);
+    alertMessage("\u5df2\u5bf9\u4ee5\u4e0b\u6587\u6863\u7684\u9009\u533a\u5e94\u7528\u683c\u5f0f\uff1a\n" + documentName(target.doc));
+  }
+
+  function ConsoleFormatFolderDocument() {
+    ConsoleSelectAndFormatDocument();
+  }
+
+  function ConsoleSelectTargetDocument() {
+    ensureOfficialDocumentConsole();
+    var path = normalizePath(chooseSiblingDocumentPath());
+    if (!path) {
+      alertMessage("\u672a\u9009\u62e9\u76ee\u6807\u6587\u6863\u3002");
+      return;
+    }
+    if (!validateTargetPath(path)) return;
+    OfficialDocumentConsole.targetPath = path;
+    OfficialDocumentConsole.targetDoc = null;
+    clearSavedSelection();
+    alertMessage("\u5df2\u9009\u62e9\u76ee\u6807\u6587\u6863\uff1a\n" + path);
+  }
+
+  function ConsoleSelectAndFormatDocument() {
+    ensureOfficialDocumentConsole();
+    var path = normalizePath(chooseSiblingDocumentPath());
+    if (!path) return;
+    if (!validateTargetPath(path)) return;
+    OfficialDocumentConsole.targetPath = path;
+    OfficialDocumentConsole.targetDoc = null;
+    clearSavedSelection();
+    var doc = openDocumentAtPath(path, false);
+    if (!doc) return;
+    runWholeFormatOnDocument(doc);
+  }
+
+  function ConsoleOpenTargetDocument() {
+    if (openTargetDocument()) alertMessage("\u76ee\u6807\u6587\u6863\u5df2\u6253\u5f00\u5e76\u5207\u6362\u5230\u524d\u53f0\u3002");
+  }
+
+  function ConsoleUseActiveDocument() {
+    ensureOfficialDocumentConsole();
+    var doc = currentDocument();
+    if (!doc) {
+      alertMessage("\u672a\u627e\u5230\u5f53\u524d\u6d3b\u52a8\u6587\u6863\u3002");
+      return;
+    }
+    var name = documentName(doc);
+    if (sameDocument(doc, controllerDocument()) || isConsoleDocumentName(name) || documentHasConsoleMacroButton(doc)) {
+      var chosen = chooseOpenTargetDocument(false, "\u8bbe\u4e3a\u76ee\u6807");
+      if (!chosen) return;
+      doc = chosen.doc;
+      name = documentName(doc);
+    }
+    if (!askYesNo("\u786e\u8ba4\u5c06\u4ee5\u4e0b\u5f53\u524d\u6d3b\u52a8\u6587\u6863\u8bbe\u4e3a\u76ee\u6807\uff1f\n" + name, "\u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0")) return;
+    OfficialDocumentConsole.targetDoc = doc;
+    OfficialDocumentConsole.targetPath = documentPath(doc);
+    clearSavedSelection();
+    var captured = captureSelectionForDocument(doc, false);
+    alertMessage(captured ?
+      "\u5df2\u8bbe\u4e3a\u76ee\u6807\u6587\u6863\uff0c\u5e76\u8bc6\u522b\u5230\u5f53\u524d\u9009\u533a\u3002" :
+      "\u5df2\u8bbe\u4e3a\u76ee\u6807\u6587\u6863\u3002");
+  }
+
+  function ConsoleChooseOpenDocument() {
+    var chosen = chooseOpenTargetDocument(false, "\u8bbe\u4e3a\u76ee\u6807");
+    if (!chosen) return;
+    alertMessage("\u5df2\u9009\u62e9\u6253\u5f00\u7684\u76ee\u6807\u6587\u6863\uff1a\n" + documentName(chosen.doc));
+  }
+
+  function ConsoleCaptureTargetSelection() {
+    var chosen = chooseOpenTargetDocument(true, "\u8bc6\u522b\u5f53\u524d\u9009\u533a");
+    if (!chosen) return;
+    captureSelectionForDocument(chosen.doc, true);
+  }
+
+  function ConsoleFormatTargetDocument() {
+    var doc = targetDocument();
+    if (!doc) return;
+    runWholeFormatOnDocument(doc);
+  }
+
+  function ConsoleShowTargetDocument() {
+    ensureOfficialDocumentConsole();
+    var target = OfficialDocumentConsole.targetDoc;
+    var path = OfficialDocumentConsole.targetPath;
+    if (target) {
+      alertMessage("\u5f53\u524d\u76ee\u6807\u6587\u6863\uff1a\n" + documentName(target) + (path ? "\n" + path : ""));
+      return;
+    }
+    if (path) {
+      alertMessage("\u5f53\u524d\u76ee\u6807\u6587\u6863\u8def\u5f84\uff1a\n" + path);
+      return;
+    }
+    alertMessage("\u5c1a\u672a\u8bbe\u7f6e\u76ee\u6807\u6587\u6863\u3002");
+  }
+
+  function ConsoleApplyTitleFormat() { applyTargetSelection("title"); }
+  function ConsoleApplyMainRecipientFormat() { applyTargetSelection("mainRecipient"); }
+  function ConsoleApplyBodyFormat() { applyTargetSelection("body"); }
+  function ConsoleApplyLevel1HeadingFormat() { applyTargetSelection("level1"); }
+  function ConsoleApplyLevel2HeadingFormat() { applyTargetSelection("level2"); }
+  function ConsoleApplyLevel3HeadingFormat() { applyTargetSelection("level3"); }
+  function ConsoleApplyLevel4HeadingFormat() { applyTargetSelection("level4"); }
+  function ConsoleApplyYiShiFormat() { applyTargetSelection("yiShi"); }
+  function ConsoleApplyDateFormat() { applyTargetSelection("date"); }
+  function ConsoleApplySignatureFormat() { applyTargetSelection("signature"); }
+  function ConsoleApplyAttachmentNoteFormat() { applyTargetSelection("attachmentNote"); }
+  function ConsoleApplyAttachmentNoteContinuationFormat() { applyTargetSelection("attachmentNoteContinuation"); }
+  function ConsoleApplyAttachmentSequenceFormat() { applyTargetSelection("attachmentSequence"); }
+  function ConsoleApplyAttachmentTitleFormat() { applyTargetSelection("attachmentTitle"); }
+  function ConsoleApplyTableTextFormat() {
+    var target = chooseOpenTargetDocument(false, "\u8868\u683c\u5b57\u4f53");
+    if (!target) return;
+    ensureOfficialDocumentFormatter();
+    formatTableFonts(target.doc);
+    alertMessage("\u5df2\u5bf9\u4ee5\u4e0b\u6587\u6863\u7684\u8868\u683c\u8bbe\u7f6e\u4e2d\u82f1\u6587\u5b57\u4f53\uff1a\n" + documentName(target.doc));
+  }
+  function ConsoleApplyFootnoteTextFormat() {
+    var target = chooseOpenTargetDocument(false, "\u811a\u6ce8\u5b57\u4f53");
+    if (!target) return;
+    ensureOfficialDocumentFormatter();
+    formatFootnoteFonts(target.doc);
+    alertMessage("\u5df2\u5bf9\u4ee5\u4e0b\u6587\u6863\u7684\u811a\u6ce8\u548c\u5c3e\u6ce8\u8bbe\u7f6e\u4e2d\u82f1\u6587\u5b57\u4f53\uff1a\n" + documentName(target.doc));
+  }
+  function ConsoleApplyPageNumberFormat() {
+    var target = chooseOpenTargetDocument(false, "\u5c45\u4e2d\u9875\u7801");
+    if (!target) return;
+    applyCenteredPageNumbers(target.doc);
+    alertMessage("\u5df2\u5bf9\u4ee5\u4e0b\u6587\u6863\u5e94\u7528\u5c45\u4e2d\u9875\u7801\uff1a\n" + documentName(target.doc));
+  }
+
+  function ConsoleRunMenu() {
+    ensureOfficialDocumentConsole();
+    var menu =
+      "\u8bf7\u8f93\u5165\u64cd\u4f5c\u5e8f\u53f7\uff1a\n" +
+      "0  \u540c\u76ee\u5f55\u9009\u62e9\u5e76\u5168\u6587\u683c\u5f0f\u5316\n" +
+      "1  \u540c\u76ee\u5f55\u9009\u62e9\u76ee\u6807\u6587\u6863\n" +
+      "2  \u6253\u5f00\u76ee\u6807\u6587\u6863\n" +
+      "3  \u5168\u6587\u683c\u5f0f\u5316\n" +
+      "20 \u540c\u76ee\u5f55\u9009\u62e9\u5e76\u5168\u6587\u683c\u5f0f\u5316\n" +
+      "22 \u4ece\u5df2\u6253\u5f00\u6587\u6863\u4e2d\u9009\u62e9\u76ee\u6807\n" +
+      "4  \u5927\u6807\u9898\n" +
+      "5  \u4e3b\u9001\u5355\u4f4d\n" +
+      "6  \u6b63\u6587\n" +
+      "7  \u4e00\u7ea7\u6807\u9898\n" +
+      "8  \u4e8c\u7ea7\u6807\u9898\n" +
+      "9  \u4e09\u7ea7\u6807\u9898\n" +
+      "10 \u56db\u7ea7\u6807\u9898\n" +
+      "11 \u4e00\u662f/\u4e8c\u662f\u52a0\u7c97\n" +
+      "12 \u6210\u6587\u65e5\u671f\n" +
+      "13 \u843d\u6b3e\u5355\u4f4d\n" +
+      "14 \u9644\u4ef6\u8bf4\u660e\n" +
+      "15 \u9644\u4ef6\u8bf4\u660e\u7eed\u884c\n" +
+      "16 \u9644\u4ef6\u5e8f\u53f7\n" +
+      "17 \u9644\u4ef6\u6807\u9898\n" +
+      "18 \u5c45\u4e2d\u9875\u7801\n" +
+      "19 \u8bc6\u522b\u5df2\u6253\u5f00\u6587\u6863\u7684\u5f53\u524d\u9009\u533a\n" +
+      "21 \u67e5\u770b\u5f53\u524d\u76ee\u6807\n" +
+      "23 \u8868\u683c\u4e2d\u82f1\u6587\u5b57\u4f53\n" +
+      "24 \u811a\u6ce8\u548c\u5c3e\u6ce8\u4e2d\u82f1\u6587\u5b57\u4f53";
+    var choice = trimText(consoleInput(menu, ""));
+    if (!choice) return;
+    switch (choice) {
+      case "0": ConsoleSelectAndFormatDocument(); break;
+      case "1": ConsoleSelectTargetDocument(); break;
+      case "2": ConsoleOpenTargetDocument(); break;
+      case "3": ConsoleFormatTargetDocument(); break;
+      case "4": ConsoleApplyTitleFormat(); break;
+      case "5": ConsoleApplyMainRecipientFormat(); break;
+      case "6": ConsoleApplyBodyFormat(); break;
+      case "7": ConsoleApplyLevel1HeadingFormat(); break;
+      case "8": ConsoleApplyLevel2HeadingFormat(); break;
+      case "9": ConsoleApplyLevel3HeadingFormat(); break;
+      case "10": ConsoleApplyLevel4HeadingFormat(); break;
+      case "11": ConsoleApplyYiShiFormat(); break;
+      case "12": ConsoleApplyDateFormat(); break;
+      case "13": ConsoleApplySignatureFormat(); break;
+      case "14": ConsoleApplyAttachmentNoteFormat(); break;
+      case "15": ConsoleApplyAttachmentNoteContinuationFormat(); break;
+      case "16": ConsoleApplyAttachmentSequenceFormat(); break;
+      case "17": ConsoleApplyAttachmentTitleFormat(); break;
+      case "18": ConsoleApplyPageNumberFormat(); break;
+      case "19": ConsoleCaptureTargetSelection(); break;
+      case "20": ConsoleSelectAndFormatDocument(); break;
+      case "21": ConsoleShowTargetDocument(); break;
+      case "22": ConsoleChooseOpenDocument(); break;
+      case "23": ConsoleApplyTableTextFormat(); break;
+      case "24": ConsoleApplyFootnoteTextFormat(); break;
+      default: alertMessage("\u672a\u77e5\u64cd\u4f5c\u5e8f\u53f7\uff1a" + choice);
+    }
+  }
+
+  function ConsoleSyntaxCheck() {
+    ensureOfficialDocumentFormatter();
+    ensureOfficialDocumentConsole();
+    controllerDocument();
+    alertMessage("\u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0\u811a\u672c\u5df2\u5b8c\u6574\u52a0\u8f7d\u3002");
+  }

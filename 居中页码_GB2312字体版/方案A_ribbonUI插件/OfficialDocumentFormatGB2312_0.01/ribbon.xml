@@ -2,7 +2,7 @@
 <customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui">
   <ribbon>
     <tabs>
-      <tab id="tabOfficialDocumentFormat" label="公文格式">
+      <tab id="tabOfficialDocumentFormatGB2312" label="公文格式·GB2312">
         <group id="grpOfficialDocumentAuto" label="全文">
           <button id="btnOfficialDocumentFormatAll"
                   label="全文格式化"
@@ -12,7 +12,7 @@
         </group>
         <group id="grpOfficialDocumentSelection" label="选区格式">
           <button id="btnApplyTitle"
-                  label="套用大标题格式"
+                  label="套用大标题格式（方正小标宋）"
                   imageMso="TextEffectsTransformGallery"
                   onAction="ApplyTitleFormat" />
           <button id="btnApplyMainRecipient"
@@ -29,15 +29,15 @@
                   imageMso="OutlinePromote"
                   onAction="ApplyLevel1HeadingFormat" />
           <button id="btnApplyLevel2"
-                  label="套用二级标题格式（楷体加粗）"
+                  label="套用二级标题格式（楷体_GB2312加粗）"
                   imageMso="OutlineDemote"
                   onAction="ApplyLevel2HeadingFormat" />
           <button id="btnApplyLevel3"
-                  label="套用三级标题格式（仿宋加粗）"
+                  label="套用三级标题格式（仿宋_GB2312加粗）"
                   imageMso="Bold"
                   onAction="ApplyLevel3HeadingFormat" />
           <button id="btnApplyLevel4"
-                  label="套用四级标题格式（仿宋）"
+                  label="套用四级标题格式（仿宋_GB2312）"
                   imageMso="ListNumbering"
                   onAction="ApplyLevel4HeadingFormat" />
           <separator id="sepOfficialDocumentSpecial" />
@@ -70,9 +70,19 @@
                   imageMso="FileDocumentInspect"
                   onAction="ApplyAttachmentTitleFormat" />
         </group>
+        <group id="grpOfficialDocumentObjects" label="表格与脚注">
+          <button id="btnApplyTableText"
+                  label="设置表格中英文字体"
+                  imageMso="TableInsert"
+                  onAction="ApplyTableTextFormat" />
+          <button id="btnApplyFootnoteText"
+                  label="设置脚注和尾注中英文字体"
+                  imageMso="FileDocumentInspect"
+                  onAction="ApplyFootnoteTextFormat" />
+        </group>
         <group id="grpOfficialDocumentPage" label="页码">
           <button id="btnApplyPageNumber"
-                  label="设置公文页码"
+                  label="设置居中页码"
                   imageMso="PageNumbersInsert"
                   onAction="ApplyPageNumberFormat" />
         </group>

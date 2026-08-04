@@ -1,0 +1,50 @@
+# ==========================================================
+# 白名单模式：默认忽略全部内容，仅显式放行下列文件。
+# 新增入库文件：在对应目录段落补 !相对路径（父目录须已放行）；
+# 或临时用 git add -f <文件>。
+# ==========================================================
+/*
+
+# ---- 根目录 ----
+!/.gitignore
+!/使用说明.md
+!/CLAUDE.md
+
+# ---- 方案A_ribbonUI插件 ----
+!/方案A_ribbonUI插件/
+/方案A_ribbonUI插件/*
+!/方案A_ribbonUI插件/install_wps_addin.ps1
+!/方案A_ribbonUI插件/公文格式化WPS宏需求与测试说明.md
+!/方案A_ribbonUI插件/安装与使用说明.md
+!/方案A_ribbonUI插件/OfficialDocumentFormat_0.01/
+/方案A_ribbonUI插件/OfficialDocumentFormat_0.01/*
+!/方案A_ribbonUI插件/OfficialDocumentFormat_0.01/main.js
+!/方案A_ribbonUI插件/OfficialDocumentFormat_0.01/ribbon.xml
+
+# ---- 方案B_控制台 ----
+!/方案B_控制台/
+/方案B_控制台/*
+!/方案B_控制台/公文格式化控制台WPS宏.js
+!/方案B_控制台/生成公文格式控制台文档.js
+!/方案B_控制台/公文格式控制台.docm
+!/方案B_控制台/安装与使用说明.md
+!/方案B_控制台/按钮绑定表.md
+
+# ---- 居中页码_GB2312字体版（独立目录，仅源码入库）----
+!/居中页码_GB2312字体版/
+/居中页码_GB2312字体版/*
+!/居中页码_GB2312字体版/方案A_ribbonUI插件/
+/居中页码_GB2312字体版/方案A_ribbonUI插件/*
+!/居中页码_GB2312字体版/方案A_ribbonUI插件/install_wps_addin.ps1
+!/居中页码_GB2312字体版/方案A_ribbonUI插件/公文格式化WPS宏需求与测试说明.md
+!/居中页码_GB2312字体版/方案A_ribbonUI插件/安装与使用说明.md
+!/居中页码_GB2312字体版/方案A_ribbonUI插件/OfficialDocumentFormatGB2312_0.01/
+/居中页码_GB2312字体版/方案A_ribbonUI插件/OfficialDocumentFormatGB2312_0.01/*
+!/居中页码_GB2312字体版/方案A_ribbonUI插件/OfficialDocumentFormatGB2312_0.01/main.js
+!/居中页码_GB2312字体版/方案A_ribbonUI插件/OfficialDocumentFormatGB2312_0.01/ribbon.xml
+!/居中页码_GB2312字体版/方案B_控制台/
+/居中页码_GB2312字体版/方案B_控制台/*
+!/居中页码_GB2312字体版/方案B_控制台/公文格式化控制台WPS宏.js
+!/居中页码_GB2312字体版/方案B_控制台/生成公文格式控制台文档.js
+!/居中页码_GB2312字体版/方案B_控制台/安装与使用说明.md
+!/居中页码_GB2312字体版/方案B_控制台/按钮绑定表.md

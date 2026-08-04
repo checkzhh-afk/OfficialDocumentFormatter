@@ -1,19 +1,26 @@
-/* 公文格式化 WPS JS 宏
- * 运行环境：WPS Office JS 宏。菜单按钮通过 customUI.xml 绑定本文件中的全局函数。
+/* \u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0 WPS JS \u5b8f
+ * \u72ec\u7acb\u63a7\u5236\u53f0\u65b9\u6848\uff1a\u6267\u884c\u65f6\u9009\u62e9\u76ee\u6807\u6587\u6863\uff0c\u6216\u628a\u5f53\u524d\u6d3b\u52a8\u6587\u6863\u8bbe\u4e3a\u76ee\u6807\u3002
+ * \u539f Ribbon \u65b9\u6848\u4ecd\u4fdd\u7559\u5728\u201c\u65b9\u6848A_ribbonUI\u63d2\u4ef6\u201d\uff0c\u4e24\u5957\u811a\u672c\u4e92\u4e0d\u8986\u76d6\u3002
  */
+  /* SHARED_CORE_START */
   var CONST;
   var OfficialDocumentFormatter;
 
   function ensureOfficialDocumentFormatter() {
     if (CONST) return;
     CONST = {};
-    CONST.FONT_BODY = "仿宋";
-    CONST.FONT_TITLE = "宋体";
-    CONST.FONT_LEVEL1 = "黑体";
-    CONST.FONT_LEVEL2 = "楷体";
+    CONST.FONT_BODY = "\u4eff\u5b8b";
+    CONST.FONT_TITLE = "\u5b8b\u4f53";
+    CONST.FONT_LEVEL1 = "\u9ed1\u4f53";
+    CONST.FONT_LEVEL2 = "\u6977\u4f53";
     CONST.FONT_WEST = "Times New Roman";
+    CONST.FONT_PAGE_NUMBER = "\u5b8b\u4f53";
     CONST.SIZE_BODY = 16;
     CONST.SIZE_TITLE = 22;
+    CONST.SIZE_PAGE_NUMBER = 14;
+    CONST.PAGE_NUMBER_GAP_MM = 7;
+    CONST.PAGE_NUMBER_TOP_OFFSET_PT = 11;
+    CONST.PAGE_NUMBER_INDENT_PT = 14;
     CONST.LINE_SPACING = 28;
     CONST.CHAR_PT = 16;
     CONST.WD_ALIGN_LEFT = 0;
@@ -26,7 +33,8 @@
     CONST.WD_HEADER_FOOTER_FIRST_PAGE = 2;
     CONST.WD_HEADER_FOOTER_EVEN_PAGES = 3;
     CONST.WD_FIELD_PAGE = 33;
-    CONST.WD_ALIGN_PAGE_NUMBER_CENTER = 1;
+    CONST.WD_ALIGN_PAGE_NUMBER_LEFT = 0;
+    CONST.WD_ALIGN_PAGE_NUMBER_RIGHT = 2;
     OfficialDocumentFormatter = {};
     OfficialDocumentFormatter.CONST = CONST;
     OfficialDocumentFormatter.trimText = trimText;
@@ -67,15 +75,15 @@
   }
 
   function endsWithColon(text) {
-    return /[:：]$/.test(trimText(text));
+    return /[:\uff1a]$/.test(trimText(text));
   }
 
   function endsWithPeriod(text) {
-    return /[。.]$/.test(trimText(text));
+    return /[\u3002.]$/.test(trimText(text));
   }
 
   function hasSerialPrefix(text) {
-    return /^([一二三四五六七八九十百]+、|（[一二三四五六七八九十百]+）|\d+\.|（\d+）)/.test(trimText(text));
+    return /^([\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e]+\u3001|[\uff08(][\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e]+[\uff09)]|\d+[.\uff0e]|[\uff08(]\d+[\uff09)])/.test(trimText(text));
   }
 
   function isCenteredParagraph(meta) {
@@ -97,10 +105,10 @@
     var s = trimText(text);
     var len = visibleLength(s);
     if (len < 2 || len > 40 || endsWithPeriod(s)) return null;
-    if (/^[一二三四五六七八九十百]+、/.test(s)) return "level1";
-    if (/^（[一二三四五六七八九十百]+）/.test(s)) return "level2";
-    if (/^\d+\./.test(s)) return "level3";
-    if (/^（\d+）/.test(s)) return "level4";
+    if (/^[\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e]+\u3001/.test(s)) return "level1";
+    if (/^[\uff08(][\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e]+[\uff09)]/.test(s)) return "level2";
+    if (/^\d+[.\uff0e]/.test(s)) return "level3";
+    if (/^[\uff08(]\d+[\uff09)]/.test(s)) return "level4";
     return null;
   }
 
@@ -116,7 +124,7 @@
   function yiShiMatches(text) {
     var s = String(text === null || text === undefined ? "" : text).replace(/[\r\n\u0007\f]+$/g, "");
     var matches = [];
-    var re = /(^|[，。；;、\s])([一二三四五六七八九十]+是)(?!否)/g;
+    var re = /(^|[\uff0c\u3002\uff1b;\u3001\uff1a:\s])([\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341]+\u662f)(?!\u5426)/g;
     var match;
     while ((match = re.exec(s)) !== null) {
       matches.push({ start: match.index + match[1].length, length: match[2].length, text: match[2] });
@@ -126,7 +134,7 @@
   }
 
   function dateLinePattern() {
-    return "\\d{4}年(?:\\d{1,2}|[【\\[]\\s*[】\\]]|_+|＿+)月(?:\\d{1,2}|[【\\[]\\s*[】\\]]|_+|＿+)日";
+    return "\\d{4}\u5e74(?:\\d{1,2}|[\u3010\\[]\\s*[\u3011\\]]|_+|\uff3f+)\u6708(?:\\d{1,2}|[\u3010\\[]\\s*[\u3011\\]]|_+|\uff3f+)\u65e5";
   }
 
   function isDateText(text) {
@@ -139,31 +147,32 @@
   }
 
   function isAttachmentNote(text) {
-    return /^附件(?:\d+|\s|[:：])/.test(trimText(text));
+    return /^\u9644\u4ef6(?:\d+|\s|[:\uff1a])/.test(trimText(text));
   }
 
   function isAttachmentNoteContinuation(text) {
-    return /^\d+(?:\s+|[.．、])\S+/.test(trimText(text));
+    return /^\d+(?:\s+|[.\uff0e\u3001])\S+/.test(trimText(text));
   }
 
   function isAttachmentSequence(text) {
-    return /^附件\s*\d*$/.test(trimText(text));
+    return /^\u9644\u4ef6\s*\d*$/.test(trimText(text));
   }
 
   function attachmentNoteHangingIndent(text) {
     var s = trimText(text);
-    var match = s.match(/^附件(?:[:：]|\s*)/);
+    var match = s.match(/^\u9644\u4ef6(?:[:\uff1a]|\s*)/);
     if (!match) return 0;
     return charWidth(match[0]) * CONST.CHAR_PT;
   }
 
   function attachmentNoteContinuationIndent() {
-    return CONST.CHAR_PT * 2 + charWidth("附件：") * CONST.CHAR_PT;
+    return CONST.CHAR_PT * 2 + charWidth("\u9644\u4ef6\uff1a") * CONST.CHAR_PT;
   }
 
   function paragraphMeta(paragraph, index) {
     var text = "";
     var align = CONST.WD_ALIGN_LEFT;
+    var leftIndent = 0;
     var hasBreak = false;
     try {
       text = paragraph.Range.Text;
@@ -171,12 +180,21 @@
     } catch (e1) {}
     try {
       align = paragraph.Range.ParagraphFormat.Alignment;
+      leftIndent = paragraph.Range.ParagraphFormat.LeftIndent;
     } catch (e2) {
       try {
         align = paragraph.Alignment;
       } catch (e3) {}
     }
-    return { paragraph: paragraph, index: index, text: trimText(text), rawText: text, align: align, hasBreak: hasBreak };
+    return {
+      paragraph: paragraph,
+      index: index,
+      text: trimText(text),
+      rawText: text,
+      align: align,
+      leftIndent: leftIndent,
+      hasBreak: hasBreak
+    };
   }
 
   function collectionToArray(collection) {
@@ -198,23 +216,46 @@
 
   function findTitleIndexes(items) {
     var indexes = findTitleIndexesWithMode(items, false);
-    if (!indexes.length) indexes = findTitleIndexesWithMode(items, true);
+    if (indexes.length) return indexes;
+    indexes = findTitleIndexesWithMode(items, true);
+    if (!indexes.length || indexes[0] !== firstNonEmptyItemIndex(items)) return [];
+    if (!hasMainRecipientImmediatelyAfter(items, indexes)) return [];
     return indexes;
+  }
+
+  function firstNonEmptyItemIndex(items) {
+    for (var i = 0; i < items.length; i++) {
+      if (trimText(items[i].text)) return i;
+    }
+    return -1;
+  }
+
+  function hasMainRecipientImmediatelyAfter(items, titleIndexes) {
+    var start = titleIndexes[titleIndexes.length - 1] + 1;
+    for (var i = start; i < items.length; i++) {
+      var text = trimText(items[i].text);
+      if (!text) continue;
+      return endsWithColon(text);
+    }
+    return false;
   }
 
   function findTitleIndexesWithMode(items, allowUncentered) {
     var indexes = [];
     var nonEmptySeen = 0;
     var started = false;
+    var firstNonEmpty = firstNonEmptyItemIndex(items);
+    if (firstNonEmpty < 0) return indexes;
     for (var i = 0; i < items.length && nonEmptySeen < 10; i++) {
       var text = trimText(items[i].text);
       if (!text) continue;
       nonEmptySeen++;
       if (!started) {
+        if (i !== firstNonEmpty) return [];
         if (isTitleCandidate(items[i], false, allowUncentered)) {
           indexes.push(i);
           started = true;
-        }
+        } else return [];
       } else if (isTitleCandidate(items[i], true, allowUncentered)) {
         indexes.push(i);
       } else {
@@ -235,9 +276,10 @@
     return -1;
   }
 
-  function findDateIndex(items) {
+  function findDateIndex(items, endIndex) {
     var idx = -1;
-    for (var i = 0; i < items.length; i++) {
+    var end = typeof endIndex === "number" && endIndex >= 0 ? endIndex : items.length;
+    for (var i = 0; i < end; i++) {
       if (isDateText(items[i].text)) idx = i;
     }
     return idx;
@@ -285,28 +327,39 @@
     return indexes;
   }
 
-  function findAttachmentBody(items, dateIndex) {
+  function isTopLevelAttachmentSequence(meta) {
+    return isAttachmentSequence(meta && meta.text);
+  }
+
+  function isAttachmentTitleCandidate(meta) {
+    var text = trimText(meta && meta.text);
+    var len = visibleLength(text);
+    if (!text || len > 50) return false;
+    if (isAttachmentSequence(text) || isDateText(text) || hasSerialPrefix(text)) return false;
+    if (endsWithColon(text) || endsWithPeriod(text)) return false;
+    return isCenteredParagraph(meta) || len >= 2;
+  }
+
+  function findAttachmentBody(items) {
     var sequenceIndexes = [];
     var titleIndexes = [];
     var afterBreak = false;
     for (var i = 0; i < items.length; i++) {
       if (items[i].hasBreak) afterBreak = true;
-      if (dateIndex >= 0 && i <= dateIndex) continue;
       var text = trimText(items[i].text);
-      if (!text) {
-        if (i > dateIndex) afterBreak = true;
-        continue;
-      }
-      if ((afterBreak || dateIndex >= 0) && isAttachmentSequence(text)) {
+      if (!text) continue;
+      if (afterBreak && isTopLevelAttachmentSequence(items[i])) {
         sequenceIndexes.push(i);
         for (var j = i + 1; j < items.length; j++) {
           if (trimText(items[j].text)) {
-            titleIndexes.push(j);
+            if (isAttachmentTitleCandidate(items[j])) titleIndexes.push(j);
             break;
           }
         }
         afterBreak = false;
+        continue;
       }
+      afterBreak = false;
     }
     return { sequenceIndexes: sequenceIndexes, titleIndexes: titleIndexes };
   }
@@ -315,11 +368,12 @@
     ensureOfficialDocumentFormatter();
     var titleIndexes = findTitleIndexes(items);
     var mainRecipientIndex = findMainRecipientIndex(items, titleIndexes);
-    var dateIndex = findDateIndex(items);
+    var attachmentBody = findAttachmentBody(items);
+    var attachmentStartIndex = attachmentBody.sequenceIndexes.length ? attachmentBody.sequenceIndexes[0] : items.length;
+    var dateIndex = findDateIndex(items, attachmentStartIndex);
     var signatureIndex = findSignatureIndex(items, dateIndex);
     var attachmentNoteIndexes = findAttachmentNoteIndexes(items, dateIndex);
     var attachmentNoteContinuationIndexes = findAttachmentNoteContinuationIndexes(items, dateIndex, attachmentNoteIndexes);
-    var attachmentBody = findAttachmentBody(items, dateIndex);
     var start = mainRecipientIndex >= 0 ? mainRecipientIndex + 1 : (titleIndexes.length ? titleIndexes[titleIndexes.length - 1] + 1 : 0);
     var end = dateIndex >= 0 ? dateIndex : items.length;
     var headings = {};
@@ -367,9 +421,37 @@
       if (paragraph.Range.ShapeRange && paragraph.Range.ShapeRange.Count > 0) return false;
     } catch (e3) {}
     try {
-      if (String(paragraph.Range.Text).indexOf("\f") >= 0) return false;
+      var rawText = String(paragraph.Range.Text || "");
+      if (rawText.indexOf("\f") >= 0 && !trimText(rawText)) return false;
     } catch (e4) {}
     return true;
+  }
+
+  function paragraphTextRange(paragraph) {
+    var baseRange = paragraph.Range;
+    var rawText = "";
+    try { rawText = String(baseRange.Text || ""); } catch (e1) { return baseRange; }
+    if (rawText.indexOf("\f") < 0) return baseRange;
+
+    var first = 0;
+    var last = rawText.length;
+    while (first < last && /[\r\n\u0007\f]/.test(rawText.charAt(first))) first++;
+    while (last > first && /[\r\n\u0007\f]/.test(rawText.charAt(last - 1))) last--;
+    if (first >= last) return null;
+
+    try {
+      var range = baseRange.Duplicate;
+      var start = Number(baseRange.Start);
+      if (isNaN(start)) start = 0;
+      if (range.SetRange) range.SetRange(start + first, start + last);
+      else {
+        range.Start = start + first;
+        range.End = start + last;
+      }
+      return range;
+    } catch (e2) {
+      return baseRange;
+    }
   }
 
   function setFont(range, cnFont, westFont, size, bold) {
@@ -406,9 +488,14 @@
 
   function normalizeParagraphText(paragraph) {
     if (!paragraph || !canFormatParagraph(paragraph)) return "";
+    var rawText = "";
     var text = "";
-    try { text = trimText(paragraph.Range.Text); } catch (e1) {}
+    try {
+      rawText = String(paragraph.Range.Text || "");
+      text = trimText(rawText);
+    } catch (e1) {}
     if (!text) return "";
+    if (rawText.indexOf("\f") >= 0) return text;
     try {
       var range = paragraph.Range.Duplicate;
       range.End = range.End - 1;
@@ -419,14 +506,16 @@
 
   function applyNamedFormat(paragraph, name) {
     if (!paragraph || !canFormatParagraph(paragraph)) return;
+    var textRange = paragraphTextRange(paragraph);
+    if (!textRange) return;
     if (name === "title" || name === "attachmentTitle") {
-      setFont(paragraph.Range, CONST.FONT_TITLE, CONST.FONT_WEST, CONST.SIZE_TITLE, true);
+      setFont(textRange, CONST.FONT_TITLE, CONST.FONT_WEST, CONST.SIZE_TITLE, true);
       setParagraph(paragraph, CONST.WD_ALIGN_CENTER, 0, 0, 0);
       return;
     }
     if (name === "mainRecipient" || name === "attachmentNote") {
       var noteIndent = name === "attachmentNote" ? attachmentNoteHangingIndent(paragraph.Range.Text) : 0;
-      setFont(paragraph.Range, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, false);
+      setFont(textRange, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, false);
       if (name === "attachmentNote") {
         setParagraph(paragraph, CONST.WD_ALIGN_JUSTIFY, CONST.CHAR_PT * 2 + noteIndent, -noteIndent, 0);
       } else {
@@ -435,38 +524,38 @@
       return;
     }
     if (name === "attachmentNoteContinuation") {
-      setFont(paragraph.Range, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, false);
+      setFont(textRange, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, false);
       setParagraph(paragraph, CONST.WD_ALIGN_JUSTIFY, attachmentNoteContinuationIndent(), 0, 0);
       return;
     }
     if (name === "level1") {
-      setFont(paragraph.Range, CONST.FONT_LEVEL1, CONST.FONT_WEST, CONST.SIZE_BODY, false);
+      setFont(textRange, CONST.FONT_LEVEL1, CONST.FONT_WEST, CONST.SIZE_BODY, false);
       setParagraph(paragraph, CONST.WD_ALIGN_JUSTIFY, 0, CONST.CHAR_PT * 2, 0);
       return;
     }
     if (name === "level2") {
-      setFont(paragraph.Range, CONST.FONT_LEVEL2, CONST.FONT_WEST, CONST.SIZE_BODY, true);
+      setFont(textRange, CONST.FONT_LEVEL2, CONST.FONT_WEST, CONST.SIZE_BODY, true);
       setParagraph(paragraph, CONST.WD_ALIGN_JUSTIFY, 0, CONST.CHAR_PT * 2, 0);
       return;
     }
     if (name === "level3") {
-      setFont(paragraph.Range, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, true);
+      setFont(textRange, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, true);
       setParagraph(paragraph, CONST.WD_ALIGN_JUSTIFY, 0, CONST.CHAR_PT * 2, 0);
       return;
     }
     if (name === "level4" || name === "body") {
-      setFont(paragraph.Range, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, false);
+      setFont(textRange, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, false);
       setParagraph(paragraph, CONST.WD_ALIGN_JUSTIFY, 0, CONST.CHAR_PT * 2, 0);
       return;
     }
     if (name === "date") {
       normalizeParagraphText(paragraph);
-      setFont(paragraph.Range, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, false);
+      setFont(textRange, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, false);
       setParagraph(paragraph, CONST.WD_ALIGN_RIGHT, 0, 0, CONST.CHAR_PT * 4);
       return;
     }
     if (name === "attachmentSequence") {
-      setFont(paragraph.Range, CONST.FONT_LEVEL1, CONST.FONT_WEST, CONST.SIZE_BODY, false);
+      setFont(textRange, CONST.FONT_LEVEL1, CONST.FONT_WEST, CONST.SIZE_BODY, false);
       setParagraph(paragraph, CONST.WD_ALIGN_LEFT, 0, 0, 0);
     }
   }
@@ -495,7 +584,9 @@
     var date = findDateText(dateText) || trimText(dateText);
     var usable = pageContentWidth(doc);
     var leftIndent = signatureLeftIndent(signature, date, usable);
-    setFont(paragraph.Range, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, false);
+    var textRange = paragraphTextRange(paragraph);
+    if (!textRange) return;
+    setFont(textRange, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, false);
     setParagraph(paragraph, CONST.WD_ALIGN_LEFT, leftIndent, 0, 0);
   }
 
@@ -514,20 +605,21 @@
     try { paragraph.Range.HighlightColorIndex = 0; } catch (e3) {}
   }
 
-  function applyYiShi(paragraph) {
+  function applyYiShi(paragraph, preserveBaseFormat) {
     if (!paragraph || !canFormatParagraph(paragraph)) return;
     var rawText = "";
     try { rawText = String(paragraph.Range.Text || ""); } catch (e1) {}
     rawText = rawText.replace(/[\r\n\u0007\f]+$/g, "");
     var matches = yiShiMatches(rawText);
     if (!matches.length) return;
-    applyNamedFormat(paragraph, "body");
+    if (!preserveBaseFormat) applyNamedFormat(paragraph, "body");
     try {
       var start = paragraph.Range.Start;
       for (var i = 0; i < matches.length; i++) {
         var marker = paragraph.Range.Duplicate;
         marker.SetRange(start + matches[i].start, start + matches[i].start + matches[i].length);
-        setFont(marker, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, true);
+        if (preserveBaseFormat) marker.Font.Bold = true;
+        else setFont(marker, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, true);
       }
     } catch (e2) {}
   }
@@ -623,28 +715,6 @@
     }
   }
 
-  function applyOpeningWithoutMainRecipient(items, result) {
-    if (result.mainRecipientIndex >= 0 || !result.titleIndexes.length) return;
-    for (var t = 0; t < result.titleIndexes.length; t++) {
-      applyNamedFormat(items[result.titleIndexes[t]].paragraph, "title");
-    }
-    var start = result.titleIndexes[result.titleIndexes.length - 1] + 1;
-    var end = result.dateIndex >= 0 ? result.dateIndex : items.length;
-    for (var i = start; i < end; i++) {
-      if (!items[i] || !trimText(items[i].text)) continue;
-      if (i === result.signatureIndex) continue;
-      if (result.attachmentNoteIndexes.indexOf(i) >= 0 || result.attachmentNoteContinuationIndexes.indexOf(i) >= 0) continue;
-      if (result.attachmentSequenceIndexes.indexOf(i) >= 0 || result.attachmentTitleIndexes.indexOf(i) >= 0) continue;
-      if (result.headings.hasOwnProperty(i)) {
-        applyNamedFormat(items[i].paragraph, result.headings[i]);
-      } else if (result.yiShiIndexes.indexOf(i) >= 0) {
-        applyYiShi(items[i].paragraph);
-      } else if (result.bodyIndexes.indexOf(i) >= 0) {
-        applyNamedFormat(items[i].paragraph, "body");
-      }
-    }
-  }
-
   function normalizeBlankLineAfterTitle(items, result) {
     if (!result.titleIndexes.length) return false;
     var titleIndex = result.titleIndexes[result.titleIndexes.length - 1];
@@ -737,17 +807,62 @@
     }
   }
 
-  function formatPageField(field) {
+  function millimetersToPoints(value) {
+    try {
+      var converted = Number(hostApplication().MillimetersToPoints(value));
+      if (isFinite(converted) && converted > 0) return converted;
+    } catch (e1) {}
+    return Number(value) * 72 / 25.4;
+  }
+
+  function configurePageNumberSection(section) {
+    if (!section) return;
+    var setup = null;
+    try { setup = section.PageSetup; } catch (e1) {}
+    if (!setup) return;
+    try { setup.OddAndEvenPagesHeaderFooter = true; } catch (e2) {}
+    var bottomMargin = millimetersToPoints(35);
+    try {
+      var currentBottomMargin = Number(setup.BottomMargin);
+      if (isFinite(currentBottomMargin) && currentBottomMargin > 0) {
+        bottomMargin = currentBottomMargin;
+      }
+    } catch (e3) {}
+    var footerDistance = bottomMargin -
+      millimetersToPoints(CONST.PAGE_NUMBER_GAP_MM) -
+      CONST.PAGE_NUMBER_TOP_OFFSET_PT;
+    if (footerDistance < 0) footerDistance = 0;
+    try { setup.FooterDistance = footerDistance; } catch (e4) {}
+  }
+
+  function pageNumberAlignment(footerIndex) {
+    return footerIndex === CONST.WD_HEADER_FOOTER_EVEN_PAGES ?
+      CONST.WD_ALIGN_PAGE_NUMBER_LEFT :
+      CONST.WD_ALIGN_PAGE_NUMBER_RIGHT;
+  }
+
+  function formatPageField(field, alignment) {
     if (!field) return;
     try {
       var pageRange = field.Result;
-      setWesternFont(pageRange, CONST.FONT_WEST);
-      pageRange.Font.Bold = false;
-      pageRange.ParagraphFormat.Alignment = CONST.WD_ALIGN_CENTER;
+      pageRange.InsertBefore("\u2014 ");
+      pageRange.InsertAfter(" \u2014");
+      setFont(pageRange, CONST.FONT_PAGE_NUMBER, CONST.FONT_PAGE_NUMBER,
+        CONST.SIZE_PAGE_NUMBER, false);
+      var paragraphFormat = pageRange.ParagraphFormat;
+      paragraphFormat.Alignment = alignment;
+      paragraphFormat.LeftIndent = alignment === CONST.WD_ALIGN_PAGE_NUMBER_LEFT ?
+        CONST.PAGE_NUMBER_INDENT_PT : 0;
+      paragraphFormat.RightIndent = alignment === CONST.WD_ALIGN_PAGE_NUMBER_RIGHT ?
+        CONST.PAGE_NUMBER_INDENT_PT : 0;
+      paragraphFormat.FirstLineIndent = 0;
+      paragraphFormat.SpaceBefore = 0;
+      paragraphFormat.SpaceAfter = 0;
     } catch (e1) {}
   }
 
-  function applyCenteredPageNumbers(doc) {
+  function applyOfficialPageNumbers(doc) {
+    ensureOfficialDocumentFormatter();
     var sections = collectionToArray(doc.Sections);
     var footerIndexes = [
       CONST.WD_HEADER_FOOTER_PRIMARY,
@@ -755,30 +870,37 @@
       CONST.WD_HEADER_FOOTER_EVEN_PAGES
     ];
     for (var i = 0; i < sections.length; i++) {
+      configurePageNumberSection(sections[i]);
       for (var j = 0; j < footerIndexes.length; j++) {
         var footerIndex = footerIndexes[j];
         if (!footerIsEnabled(sections[i], footerIndex)) continue;
         var footer = footerByIndex(sections[i], footerIndex);
         if (!footer) continue;
+        try { footer.LinkToPrevious = false; } catch (e1) {}
         removeExistingPageFields(footer);
+        var alignment = pageNumberAlignment(footerIndex);
         try {
           var pageNumbers = footer.PageNumbers;
-          try { pageNumbers.RestartNumberingAtSection = false; } catch (e1) {}
-          pageNumbers.Add(CONST.WD_ALIGN_PAGE_NUMBER_CENTER, true);
-        } catch (e2) {}
+          try { pageNumbers.RestartNumberingAtSection = false; } catch (e2) {}
+          pageNumbers.Add(alignment, true);
+        } catch (e3) {}
         try {
           var fields = collectionToArray(footer.Range.Fields);
           for (var f = 0; f < fields.length; f++) {
-            if (isPageField(fields[f])) formatPageField(fields[f]);
+            if (isPageField(fields[f])) formatPageField(fields[f], alignment);
           }
-        } catch (e3) {}
+        } catch (e4) {}
       }
     }
   }
 
+  function applyCenteredPageNumbers(doc) {
+    applyOfficialPageNumbers(doc);
+  }
+
   function askYesNo(message, title) {
     try {
-      var answer = MsgBox(message, 4, title || "公文格式");
+      var answer = MsgBox(message, 4, title || "\u516c\u6587\u683c\u5f0f");
       return answer === 6 || answer === "Yes" || answer === true;
     } catch (e1) {}
     try {
@@ -791,14 +913,14 @@
   }
 
   function alertMessage(message) {
-    try { MsgBox(message, 0, "公文格式"); return; } catch (e1) {}
+    try { MsgBox(message, 0, "\u516c\u6587\u683c\u5f0f"); return; } catch (e1) {}
     try { hostApplication().Alert(message); return; } catch (e2) {}
     try { if (typeof alert !== "undefined") alert(message); return; } catch (e3) {}
   }
 
   function formatWholeDocument() {
     ensureOfficialDocumentFormatter();
-    if (!askYesNo("将调整标题、空行、正文、落款和页码，是否继续？", "公文格式")) return;
+    if (!askYesNo("\u5c06\u8c03\u6574\u6807\u9898\u3001\u7a7a\u884c\u3001\u6b63\u6587\u3001\u843d\u6b3e\u548c\u9875\u7801\uff0c\u662f\u5426\u7ee7\u7eed\uff1f", "\u516c\u6587\u683c\u5f0f")) return;
     var doc = currentDocument();
     var items = documentItems(doc);
     var result = classifyDocument(items);
@@ -814,13 +936,9 @@
       items = documentItems(doc);
       result = classifyDocument(items);
     }
-    if (askYesNo("是否先清除全文格式？", "公文格式")) {
+    if (askYesNo("\u662f\u5426\u5148\u6e05\u9664\u5168\u6587\u683c\u5f0f\uff1f", "\u516c\u6587\u683c\u5f0f")) {
       for (var c = 0; c < items.length; c++) clearParagraph(items[c].paragraph);
-      items = documentItems(doc);
-      result = classifyDocument(items);
     }
-    items = documentItems(doc);
-    result = classifyDocument(items);
 
     for (var i = 0; i < result.titleIndexes.length; i++) applyNamedFormat(items[result.titleIndexes[i]].paragraph, "title");
     formatBlankLinesBeforeTitle(items, result);
@@ -850,11 +968,10 @@
       applyNamedFormat(items[result.bodyIndexes[b]].paragraph, "body");
     }
     for (var y = 0; y < result.yiShiIndexes.length; y++) {
-      applyYiShi(items[result.yiShiIndexes[y]].paragraph);
+      applyYiShi(items[result.yiShiIndexes[y]].paragraph, true);
     }
-    applyOpeningWithoutMainRecipient(items, result);
-    applyCenteredPageNumbers(doc);
-    alertMessage("格式化完成");
+    applyOfficialPageNumbers(doc);
+    alertMessage("\u683c\u5f0f\u5316\u5b8c\u6210");
   }
 
   function targetParagraphs() {
@@ -870,13 +987,14 @@
     ensureOfficialDocumentFormatter();
     var paragraphs = targetParagraphs();
     if (!paragraphs.length) {
-      alertMessage("请先选中要设置格式的文字或段落。");
+      alertMessage("\u8bf7\u5148\u9009\u4e2d\u8981\u8bbe\u7f6e\u683c\u5f0f\u7684\u6587\u5b57\u6216\u6bb5\u843d\u3002");
       return;
     }
     applyToParagraphs(paragraphs, formatName, currentDocument());
   }
 
   function applyToParagraphs(paragraphs, formatName, doc) {
+    ensureOfficialDocumentFormatter();
     var dateText = formatName === "signature" ? recognizedDateText(doc) : "";
     for (var i = 0; i < paragraphs.length; i++) {
       if (formatName === "yiShi") applyYiShi(paragraphs[i]);
@@ -905,37 +1023,52 @@
   function ApplyAttachmentTitleFormat() { applyToSelection("attachmentTitle"); }
   function ApplyPageNumberFormat() {
     ensureOfficialDocumentFormatter();
-    applyCenteredPageNumbers(currentDocument());
-    alertMessage("页码格式化完成");
+    applyOfficialPageNumbers(currentDocument());
+    alertMessage("\u9875\u7801\u683c\u5f0f\u5316\u5b8c\u6210");
   }
 
   function GetOfficialDocumentFormatter() {
     ensureOfficialDocumentFormatter();
     return OfficialDocumentFormatter;
   }
+  /* SHARED_CORE_END */
 
-  var OfficialDocumentConsole = {
-    targetPath: "",
-    targetDoc: null,
-    selectionStart: -1,
-    selectionEnd: -1,
-    selectionDocPath: "",
-    lastInputAvailable: false
-  };
+  var OfficialDocumentConsole;
+
+  function ensureOfficialDocumentConsole() {
+    if (OfficialDocumentConsole) return;
+    OfficialDocumentConsole = {};
+    OfficialDocumentConsole.controllerDoc = null;
+    OfficialDocumentConsole.targetPath = "";
+    OfficialDocumentConsole.targetDoc = null;
+    OfficialDocumentConsole.selectionStart = -1;
+    OfficialDocumentConsole.selectionEnd = -1;
+    OfficialDocumentConsole.selectionDocPath = "";
+    OfficialDocumentConsole.lastInputAvailable = false;
+    OfficialDocumentConsole.lastFileDialogAvailable = false;
+  }
 
   function consoleInput(message, defaultValue) {
+    ensureOfficialDocumentConsole();
     OfficialDocumentConsole.lastInputAvailable = false;
     try {
-      var globalInputValue = InputBox(message, "公文格式控制台", defaultValue || "");
+      var globalInputValue = InputBox(message, "\u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0", defaultValue || "");
       OfficialDocumentConsole.lastInputAvailable = true;
       return globalInputValue;
     } catch (e1) {}
     try {
-      var applicationInputValue = hostApplication().InputBox(message, "公文格式控制台", defaultValue || "");
+      var applicationInputValue = hostApplication().InputBox(message, "\u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0", defaultValue || "");
       OfficialDocumentConsole.lastInputAvailable = true;
       return applicationInputValue;
     } catch (e2) {}
     return "";
+  }
+
+  function consoleCollectionItem(collection, index) {
+    try { return collection.Item(index); } catch (e1) {}
+    try { return collection(index); } catch (e2) {}
+    try { return collection[index - 1]; } catch (e3) {}
+    return null;
   }
 
   function consoleSelectedFile(dialog) {
@@ -945,49 +1078,26 @@
     return "";
   }
 
-  function currentFolderPath() {
-    try {
-      var doc = currentDocument();
-      if (doc && doc.Path) return String(doc.Path);
-    } catch (e1) {}
-    return "";
-  }
-
-  function pickTargetDocumentPath() {
-    var app = hostApplication();
-    var fileDialogAvailable = false;
-    try {
-      var dialog = app.FileDialog(3);
-      if (!dialog) throw new Error("FileDialog unavailable");
-      fileDialogAvailable = true;
-      dialog.Title = "选择需要格式化的公文";
-      dialog.AllowMultiSelect = false;
-      try {
-        dialog.Filters.Clear();
-        dialog.Filters.Add("Word/WPS 文档", "*.docx;*.doc;*.wps;*.wpt");
-      } catch (filterError) {}
-      try {
-        var folder = currentFolderPath();
-        if (folder) dialog.InitialFileName = folder;
-      } catch (folderError) {}
-      var result = dialog.Show();
-      if (result === -1 || result === true || result === 1) return consoleSelectedFile(dialog);
-    } catch (e1) {}
-    var path = consoleInput("请输入目标文档完整路径：", OfficialDocumentConsole.targetPath || "");
-    if (!path && !fileDialogAvailable && !OfficialDocumentConsole.lastInputAvailable) {
-      alertMessage("当前 WPS 不支持文件选择或路径输入。请先手动打开目标文档，再运行“当前文档设为目标”。");
-    }
-    return path;
-  }
-
   function normalizePath(path) {
-    return String(path || "").replace(/^"|"$/g, "").replace(/\\/g, "/").replace(/^\s+|\s+$/g, "");
+    var value = String(path || "").replace(/^"|"$/g, "").replace(/^\s+|\s+$/g, "");
+    var normalized = "";
+    for (var i = 0; i < value.length; i++) {
+      normalized += value.charAt(i) === String.fromCharCode(92) ? "/" : value.charAt(i);
+    }
+    return normalized;
+  }
+
+  function isWindowsAbsolutePath(path) {
+    return path.length >= 3 &&
+      /[A-Za-z]/.test(path.charAt(0)) &&
+      path.charAt(1) === ":" &&
+      path.charAt(2) === "/";
   }
 
   function samePath(a, b) {
     var left = normalizePath(a);
     var right = normalizePath(b);
-    if (/^[A-Za-z]:\//.test(left) && /^[A-Za-z]:\//.test(right)) {
+    if (isWindowsAbsolutePath(left) && isWindowsAbsolutePath(right)) {
       return left.toLowerCase() === right.toLowerCase();
     }
     return left === right;
@@ -999,8 +1109,43 @@
   }
 
   function documentName(doc) {
-    try { return String(doc.Name || doc.FullName || "未命名文档"); } catch (e1) {}
-    return "未命名文档";
+    try { return String(doc.Name || doc.FullName || "\u672a\u547d\u540d\u6587\u6863"); } catch (e1) {}
+    return "\u672a\u547d\u540d\u6587\u6863";
+  }
+
+  function pathFileName(path) {
+    var normalized = normalizePath(path);
+    var index = normalized.lastIndexOf("/");
+    return index >= 0 ? normalized.substring(index + 1) : normalized;
+  }
+
+  function pathFolder(path) {
+    var normalized = normalizePath(path);
+    var index = normalized.lastIndexOf("/");
+    return index > 0 ? normalized.substring(0, index) : "";
+  }
+
+  function pathExtension(path) {
+    var name = pathFileName(path);
+    var index = name.lastIndexOf(".");
+    return index >= 0 ? name.substring(index).toLowerCase() : "";
+  }
+
+  function isSupportedDocumentPath(path) {
+    var extension = pathExtension(path);
+    return extension === ".doc" ||
+      extension === ".docx" ||
+      extension === ".docm" ||
+      extension === ".wps" ||
+      extension === ".wpt";
+  }
+
+  function isTemporaryDocumentPath(path) {
+    return pathFileName(path).indexOf("~$") === 0;
+  }
+
+  function isConsoleDocumentName(name) {
+    return String(name || "").indexOf("\u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0") >= 0;
   }
 
   function sameDocument(left, right) {
@@ -1011,15 +1156,248 @@
     return !!leftPath && !!rightPath && samePath(leftPath, rightPath);
   }
 
+  function documentHasConsoleMacroButton(doc) {
+    if (!doc) return false;
+    var fields;
+    var count = 0;
+    try {
+      fields = doc.Fields;
+      count = Number(fields.Count);
+    } catch (e1) {
+      return false;
+    }
+    for (var i = 1; i <= count; i++) {
+      var field = consoleCollectionItem(fields, i);
+      if (!field) continue;
+      try {
+        if (/MACROBUTTON\s+Console/i.test(String(field.Code.Text || ""))) return true;
+      } catch (e2) {}
+    }
+    return false;
+  }
+
+  function isControllerDocumentPath(path) {
+    var normalized = normalizePath(path);
+    if (!normalized) return false;
+    if (isConsoleDocumentName(pathFileName(normalized))) return true;
+    try {
+      if (OfficialDocumentConsole.controllerDoc &&
+          samePath(documentPath(OfficialDocumentConsole.controllerDoc), normalized)) {
+        return true;
+      }
+    } catch (e1) {}
+    var docs;
+    var count = 0;
+    try {
+      docs = hostApplication().Documents;
+      count = Number(docs.Count);
+    } catch (e2) {
+      return false;
+    }
+    for (var i = 1; i <= count; i++) {
+      var doc = consoleCollectionItem(docs, i);
+      if (!doc || !samePath(documentPath(doc), normalized)) continue;
+      if (documentHasConsoleMacroButton(doc)) return true;
+    }
+    return false;
+  }
+
+  function isDocumentOpen(doc) {
+    if (!doc) return false;
+    try {
+      var ignored = doc.Name;
+      return ignored !== null && ignored !== undefined;
+    } catch (e1) {}
+    return false;
+  }
+
+  function controllerDocument() {
+    ensureOfficialDocumentConsole();
+    if (isDocumentOpen(OfficialDocumentConsole.controllerDoc)) {
+      return OfficialDocumentConsole.controllerDoc;
+    }
+    OfficialDocumentConsole.controllerDoc = null;
+    var active = null;
+    try { active = currentDocument(); } catch (e1) {}
+    if (active && (isConsoleDocumentName(documentName(active)) || documentHasConsoleMacroButton(active))) {
+      OfficialDocumentConsole.controllerDoc = active;
+      return active;
+    }
+    var docs;
+    var count = 0;
+    try {
+      docs = hostApplication().Documents;
+      count = Number(docs.Count);
+    } catch (e2) {
+      return null;
+    }
+    for (var i = 1; i <= count; i++) {
+      var doc = consoleCollectionItem(docs, i);
+      if (!doc) continue;
+      if (isConsoleDocumentName(documentName(doc)) || documentHasConsoleMacroButton(doc)) {
+        OfficialDocumentConsole.controllerDoc = doc;
+        return doc;
+      }
+    }
+    return null;
+  }
+
+  function controllerFolderPath(showError) {
+    var controller = controllerDocument();
+    if (!controller) {
+      if (showError) {
+        alertMessage("\u672a\u627e\u5230\u201c\u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0\u201d\u6587\u6863\u3002\u8bf7\u5148\u6253\u5f00\u6b63\u5f0f DOCM \u63a7\u5236\u53f0\u3002");
+      }
+      return "";
+    }
+    var folder = "";
+    try { folder = normalizePath(controller.Path); } catch (e1) {}
+    if (!folder && showError) {
+      alertMessage("\u63a7\u5236\u53f0\u6587\u6863\u5c1a\u672a\u4fdd\u5b58\u5230\u6587\u4ef6\u5939\u3002\u8bf7\u5148\u4fdd\u5b58 DOCM\uff0c\u518d\u6267\u884c\u540c\u76ee\u5f55\u683c\u5f0f\u5316\u3002");
+    }
+    return folder;
+  }
+
+  function validateTargetPath(path) {
+    if (!path) return false;
+    if (isTemporaryDocumentPath(path)) {
+      alertMessage("\u4e0d\u80fd\u5904\u7406 WPS \u751f\u6210\u7684\u4e34\u65f6\u6587\u4ef6\uff1a\n" + pathFileName(path));
+      return false;
+    }
+    if (!isSupportedDocumentPath(path)) {
+      alertMessage("\u4ec5\u652f\u6301 .doc\u3001.docx\u3001.docm\u3001.wps \u548c .wpt \u6587\u6863\u3002");
+      return false;
+    }
+    if (isControllerDocumentPath(path)) {
+      alertMessage("\u4e0d\u80fd\u628a\u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0\u6587\u6863\u8bbe\u4e3a\u76ee\u6807\u3002");
+      return false;
+    }
+    return true;
+  }
+
+  function pathAlreadyListed(paths, path) {
+    for (var i = 0; i < paths.length; i++) {
+      if (samePath(paths[i], path)) return true;
+    }
+    return false;
+  }
+
+  function discoverSiblingDocumentPaths() {
+    var result = { available: false, folder: "", paths: [], error: "" };
+    var folder = controllerFolderPath(true);
+    if (!folder) return result;
+    result.folder = folder;
+    var patterns = ["*.doc", "*.docx", "*.docm", "*.wps", "*.wpt"];
+    var expectedExtensions = [".doc", ".docx", ".docm", ".wps", ".wpt"];
+    for (var p = 0; p < patterns.length; p++) {
+      try {
+        var search = hostApplication().FileSearch;
+        search.NewSearch();
+        search.LookIn = folder;
+        search.SearchSubFolders = false;
+        search.FileName = patterns[p];
+        search.Execute();
+        result.available = true;
+        var count = Number(search.FoundFiles.Count);
+        for (var i = 1; i <= count; i++) {
+          var found = normalizePath(consoleCollectionItem(search.FoundFiles, i));
+          if (!found || pathExtension(found) !== expectedExtensions[p]) continue;
+          if (isControllerDocumentPath(found) ||
+              isTemporaryDocumentPath(found) ||
+              pathAlreadyListed(result.paths, found)) continue;
+          result.paths.push(found);
+        }
+      } catch (searchError) {
+        result.error = String(searchError.message || searchError);
+      }
+    }
+    result.paths.sort(function (left, right) {
+      var a = pathFileName(left).toLowerCase();
+      var b = pathFileName(right).toLowerCase();
+      if (a < b) return -1;
+      if (a > b) return 1;
+      return 0;
+    });
+    return result;
+  }
+
+  function pickTargetDocumentPath(folder, requireSameFolder) {
+    ensureOfficialDocumentConsole();
+    OfficialDocumentConsole.lastFileDialogAvailable = false;
+    var app = hostApplication();
+    try {
+      var dialog = app.FileDialog(3);
+      if (!dialog) throw new Error("FileDialog unavailable");
+      OfficialDocumentConsole.lastFileDialogAvailable = true;
+      dialog.Title = "\u9009\u62e9\u9700\u8981\u683c\u5f0f\u5316\u7684\u516c\u6587";
+      dialog.AllowMultiSelect = false;
+      try {
+        dialog.Filters.Clear();
+        dialog.Filters.Add("Word/WPS \u6587\u6863", "*.doc;*.docx;*.docm;*.wps;*.wpt");
+      } catch (filterError) {}
+      try {
+        if (folder) dialog.InitialFileName = folder.replace(/\//g, String.fromCharCode(92)) + String.fromCharCode(92);
+      } catch (folderError) {}
+      while (true) {
+        var result = dialog.Show();
+        if (!(result === -1 || result === true || result === 1)) return "";
+        var selected = normalizePath(consoleSelectedFile(dialog));
+        if (!validateTargetPath(selected)) continue;
+        if (requireSameFolder && folder && !samePath(pathFolder(selected), folder)) {
+          alertMessage("\u8bf7\u9009\u62e9\u4e0e\u63a7\u5236\u53f0\u4f4d\u4e8e\u540c\u4e00\u6587\u4ef6\u5939\u7684\u6587\u6863\u3002");
+          continue;
+        }
+        return selected;
+      }
+    } catch (e1) {
+      OfficialDocumentConsole.lastFileDialogAvailable = false;
+    }
+    return "";
+  }
+
+  function chooseSiblingDocumentPath() {
+    var discovery = discoverSiblingDocumentPaths();
+    if (!discovery.folder) return "";
+    if (!discovery.available) {
+      var fallback = pickTargetDocumentPath(discovery.folder, true);
+      if (!fallback) {
+        alertMessage("\u5f53\u524d WPS \u4e0d\u652f\u6301\u81ea\u52a8\u626b\u63cf\u6587\u4ef6\u5939\uff0c\u4e14\u672a\u4ece\u6587\u4ef6\u9009\u62e9\u6846\u9009\u4e2d\u76ee\u6807\u6587\u6863\u3002");
+      }
+      return fallback;
+    }
+    if (!discovery.paths.length) {
+      alertMessage("\u63a7\u5236\u53f0\u6240\u5728\u6587\u4ef6\u5939\u4e2d\u6ca1\u6709\u53ef\u5904\u7406\u7684 .doc\u3001.docx\u3001.docm\u3001.wps \u6216 .wpt \u6587\u6863\u3002");
+      return "";
+    }
+    if (discovery.paths.length === 1) return discovery.paths[0];
+    var selected = pickTargetDocumentPath(discovery.folder, true);
+    if (selected || OfficialDocumentConsole.lastFileDialogAvailable) return selected;
+    var menu = "\u540c\u76ee\u5f55\u68c0\u6d4b\u5230\u591a\u4e2a\u6587\u6863\uff1a\n";
+    for (var i = 0; i < discovery.paths.length; i++) {
+      menu += (i + 1) + "  " + pathFileName(discovery.paths[i]) + "\n";
+    }
+    menu += "\n\u5f53\u524d WPS \u65e0\u6cd5\u6253\u5f00\u539f\u751f\u6587\u4ef6\u9009\u62e9\u6846\uff0c\u8bf7\u8f93\u5165\u5e8f\u53f7\u3002";
+    while (true) {
+      var choice = trimText(consoleInput(menu, ""));
+      if (!choice) {
+        if (!OfficialDocumentConsole.lastInputAvailable) {
+          return pickTargetDocumentPath(discovery.folder, true);
+        }
+        return "";
+      }
+      if (/^\d+$/.test(choice)) {
+        var index = Number(choice) - 1;
+        if (index >= 0 && index < discovery.paths.length) return discovery.paths[index];
+      }
+      alertMessage("\u8bf7\u8f93\u5165\u5217\u8868\u4e2d\u7684\u6709\u6548\u5e8f\u53f7\u3002");
+    }
+  }
+
   function clearSavedSelection() {
+    ensureOfficialDocumentConsole();
     OfficialDocumentConsole.selectionStart = -1;
     OfficialDocumentConsole.selectionEnd = -1;
     OfficialDocumentConsole.selectionDocPath = "";
-  }
-
-  function activeSelectionRange() {
-    try { return hostApplication().Selection.Range; } catch (e1) {}
-    return null;
   }
 
   function rangeBelongsToDocument(range, doc) {
@@ -1030,12 +1408,41 @@
     return sameDocument(currentDocument(), doc);
   }
 
+  function documentSelectionRange(doc) {
+    if (!doc) return null;
+    var fallback = null;
+    try {
+      var windows = doc.Windows;
+      var count = windows ? Number(windows.Count) : 0;
+      for (var i = 1; i <= count; i++) {
+        var window = consoleCollectionItem(windows, i);
+        if (!window || !window.Selection) continue;
+        var range = window.Selection.Range;
+        if (!fallback) fallback = range;
+        if (rangeHasSelection(range)) return range;
+      }
+    } catch (e1) {}
+    if (fallback) return fallback;
+    try {
+      if (sameDocument(currentDocument(), doc)) return hostApplication().Selection.Range;
+    } catch (e2) {}
+    return null;
+  }
+
+  function rangeHasSelection(range) {
+    if (!range) return false;
+    try { return Number(range.End) > Number(range.Start); } catch (e1) {}
+    return false;
+  }
+
   function captureSelectionForDocument(doc, showMessage) {
+    ensureOfficialDocumentConsole();
     if (!doc) return false;
-    try { doc.Activate(); } catch (e1) {}
-    var range = activeSelectionRange();
+    var range = documentSelectionRange(doc);
     if (!range || !rangeBelongsToDocument(range, doc)) {
-      alertMessage("当前选区不属于目标文档。请切换到目标文档后重新选择段落。");
+      if (showMessage) {
+        alertMessage("\u5f53\u524d\u9009\u533a\u4e0d\u5c5e\u4e8e\u76ee\u6807\u6587\u6863\u3002\u8bf7\u5207\u6362\u5230\u76ee\u6807\u6587\u6863\u540e\u91cd\u65b0\u9009\u62e9\u6bb5\u843d\u3002");
+      }
       return false;
     }
     var start = -1;
@@ -1045,17 +1452,20 @@
       end = Number(range.End);
     } catch (e2) {}
     if (start < 0 || end <= start) {
-      alertMessage("请先选中至少一个字符或完整段落，再记录选区。");
+      if (showMessage) {
+        alertMessage("\u8bf7\u5148\u9009\u4e2d\u81f3\u5c11\u4e00\u4e2a\u5b57\u7b26\u6216\u5b8c\u6574\u6bb5\u843d\u3002");
+      }
       return false;
     }
     OfficialDocumentConsole.selectionStart = start;
     OfficialDocumentConsole.selectionEnd = end;
     OfficialDocumentConsole.selectionDocPath = documentPath(doc);
-    if (showMessage) alertMessage("已记录目标文档当前选区。现在可切换回控制台执行局部格式按钮。");
+    if (showMessage) alertMessage("\u5df2\u8bc6\u522b\u5e76\u8bb0\u5f55\u6587\u6863\u9009\u533a\uff1a\n" + documentName(doc));
     return true;
   }
 
   function savedSelectionParagraphs(doc) {
+    ensureOfficialDocumentConsole();
     if (OfficialDocumentConsole.selectionStart < 0 ||
         OfficialDocumentConsole.selectionEnd <= OfficialDocumentConsole.selectionStart) return [];
     var savedPath = OfficialDocumentConsole.selectionDocPath;
@@ -1067,6 +1477,77 @@
       clearSavedSelection();
       return [];
     }
+  }
+
+  function openTargetDocuments() {
+    var result = [];
+    var docs;
+    var count = 0;
+    var controller = controllerDocument();
+    try {
+      docs = hostApplication().Documents;
+      count = Number(docs.Count);
+    } catch (e1) {
+      return result;
+    }
+    for (var i = 1; i <= count; i++) {
+      var doc = consoleCollectionItem(docs, i);
+      if (!doc || sameDocument(doc, controller)) continue;
+      if (isControllerDocumentPath(documentPath(doc))) continue;
+      result.push(doc);
+    }
+    return result;
+  }
+
+  function targetDocumentIndex(documents) {
+    ensureOfficialDocumentConsole();
+    for (var i = 0; i < documents.length; i++) {
+      if (sameDocument(documents[i], OfficialDocumentConsole.targetDoc)) return i;
+      if (OfficialDocumentConsole.targetPath &&
+          samePath(documentPath(documents[i]), OfficialDocumentConsole.targetPath)) return i;
+    }
+    return -1;
+  }
+
+  function chooseOpenTargetDocument(requireSelection, actionName) {
+    var documents = openTargetDocuments();
+    if (!documents.length) {
+      alertMessage("\u672a\u627e\u5230\u5df2\u6253\u5f00\u7684\u5f85\u5904\u7406\u6587\u6863\u3002\u8bf7\u5148\u6253\u5f00\u516c\u6587\uff0c\u9700\u8981\u5c40\u90e8\u8c03\u6574\u65f6\u8bf7\u5148\u9009\u4e2d\u6587\u5b57\u3002");
+      return null;
+    }
+    var selectedIndex = 0;
+    if (documents.length > 1) {
+      var menu = "\u5df2\u6253\u5f00\u591a\u4e2a\u6587\u6863\uff0c\u8bf7\u9009\u62e9\u8981\u6267\u884c\u201c" +
+        actionName + "\u201d\u7684\u6587\u6863\uff1a\n";
+      for (var i = 0; i < documents.length; i++) {
+        var range = documentSelectionRange(documents[i]);
+        var status = rangeHasSelection(range) ? "\u5df2\u9009\u4e2d\u6587\u5b57" : "\u672a\u9009\u4e2d\u6587\u5b57";
+        menu += (i + 1) + "  " + documentName(documents[i]) + "  [" + status + "]\n";
+      }
+      var rememberedIndex = targetDocumentIndex(documents);
+      var defaultChoice = rememberedIndex >= 0 ? String(rememberedIndex + 1) : "";
+      while (true) {
+        var choice = trimText(consoleInput(menu, defaultChoice));
+        if (!choice) return null;
+        if (/^\d+$/.test(choice)) {
+          selectedIndex = Number(choice) - 1;
+          if (selectedIndex >= 0 && selectedIndex < documents.length) break;
+        }
+        alertMessage("\u8bf7\u8f93\u5165\u5df2\u6253\u5f00\u6587\u6863\u5217\u8868\u4e2d\u7684\u6709\u6548\u5e8f\u53f7\u3002");
+      }
+    }
+    var doc = documents[selectedIndex];
+    var selectedRange = documentSelectionRange(doc);
+    if (requireSelection && !rangeHasSelection(selectedRange)) {
+      alertMessage("\u6240\u9009\u6587\u6863\u4e2d\u6ca1\u6709\u9009\u4e2d\u6587\u5b57\u3002\u8bf7\u5207\u6362\u5230\u8be5\u6587\u6863\u9009\u4e2d\u6587\u5b57\uff0c\u518d\u56de\u5230\u63a7\u5236\u53f0\u70b9\u51fb\u683c\u5f0f\u6309\u94ae\u3002");
+      return null;
+    }
+    ensureOfficialDocumentConsole();
+    OfficialDocumentConsole.targetDoc = doc;
+    OfficialDocumentConsole.targetPath = documentPath(doc);
+    if (rangeHasSelection(selectedRange)) captureSelectionForDocument(doc, false);
+    else clearSavedSelection();
+    return { doc: doc, range: selectedRange };
   }
 
   function findOpenDocumentByPath(path) {
@@ -1085,31 +1566,43 @@
     return null;
   }
 
-  function openTargetDocument() {
-    var path = normalizePath(OfficialDocumentConsole.targetPath);
-    if (!path) {
-      path = normalizePath(pickTargetDocumentPath());
-      OfficialDocumentConsole.targetPath = path;
-    }
-    if (!path) {
-      alertMessage("未选择目标文档。");
-      return null;
-    }
+  function openDocumentAtPath(path, activateDocument) {
+    path = normalizePath(path);
+    if (!validateTargetPath(path)) return null;
     var doc = findOpenDocumentByPath(path);
     if (!doc) {
       try {
         doc = hostApplication().Documents.Open(path);
       } catch (openError) {
-        alertMessage("目标文档打开失败：" + openError.message);
+        alertMessage("\u76ee\u6807\u6587\u6863\u6253\u5f00\u5931\u8d25\uff1a" + String(openError.message || openError));
         return null;
       }
     }
+    ensureOfficialDocumentConsole();
     OfficialDocumentConsole.targetDoc = doc;
-    try { doc.Activate(); } catch (activateError) {}
+    OfficialDocumentConsole.targetPath = path;
+    if (activateDocument) {
+      try { doc.Activate(); } catch (activateError) {}
+    }
     return doc;
   }
 
+  function openTargetDocument() {
+    ensureOfficialDocumentConsole();
+    var path = normalizePath(OfficialDocumentConsole.targetPath);
+    if (!path) {
+      path = normalizePath(chooseSiblingDocumentPath());
+      OfficialDocumentConsole.targetPath = path;
+    }
+    if (!path) {
+      alertMessage("\u672a\u9009\u62e9\u76ee\u6807\u6587\u6863\u3002");
+      return null;
+    }
+    return openDocumentAtPath(path, true);
+  }
+
   function targetDocument() {
+    ensureOfficialDocumentConsole();
     if (OfficialDocumentConsole.targetDoc) {
       try {
         OfficialDocumentConsole.targetDoc.Activate();
@@ -1121,74 +1614,116 @@
     return openTargetDocument();
   }
 
-  function applyTargetSelection(formatName) {
-    var doc = targetDocument();
+  function runWholeFormatOnDocument(doc) {
     if (!doc) return;
-    var paragraphs = savedSelectionParagraphs(doc);
+    try { doc.Activate(); } catch (e1) {}
+    formatWholeDocument();
+    try { doc.Activate(); } catch (e2) {}
+  }
+
+  function applyTargetSelection(formatName) {
+    var target = chooseOpenTargetDocument(true, "\u5c40\u90e8\u683c\u5f0f\u8c03\u6574");
+    if (!target) return;
+    var paragraphs = [];
+    try { paragraphs = collectionToArray(target.range.Paragraphs); } catch (e1) {}
     if (!paragraphs.length) {
-      var range = activeSelectionRange();
-      if (range && rangeBelongsToDocument(range, doc)) {
-        paragraphs = collectionToArray(range.Paragraphs);
-        captureSelectionForDocument(doc, false);
-      }
-    }
-    if (!paragraphs.length) {
-      alertMessage("未记录目标文档选区。请在目标文档选中段落后，运行“记录当前选区”，再点击格式按钮。");
+      alertMessage("\u65e0\u6cd5\u8bfb\u53d6\u6240\u9009\u6587\u5b57\u6240\u5728\u6bb5\u843d\u3002");
       return;
     }
-    applyToParagraphs(paragraphs, formatName, doc);
+    applyToParagraphs(paragraphs, formatName, target.doc);
+    alertMessage("\u5df2\u5bf9\u4ee5\u4e0b\u6587\u6863\u7684\u9009\u533a\u5e94\u7528\u683c\u5f0f\uff1a\n" + documentName(target.doc));
+  }
+
+  function ConsoleFormatFolderDocument() {
+    ConsoleSelectAndFormatDocument();
   }
 
   function ConsoleSelectTargetDocument() {
-    var path = normalizePath(pickTargetDocumentPath());
+    ensureOfficialDocumentConsole();
+    var path = normalizePath(chooseSiblingDocumentPath());
     if (!path) {
-      alertMessage("未选择目标文档。");
+      alertMessage("\u672a\u9009\u62e9\u76ee\u6807\u6587\u6863\u3002");
       return;
     }
+    if (!validateTargetPath(path)) return;
     OfficialDocumentConsole.targetPath = path;
     OfficialDocumentConsole.targetDoc = null;
     clearSavedSelection();
-    alertMessage("已选择目标文档：\n" + path);
+    alertMessage("\u5df2\u9009\u62e9\u76ee\u6807\u6587\u6863\uff1a\n" + path);
+  }
+
+  function ConsoleSelectAndFormatDocument() {
+    ensureOfficialDocumentConsole();
+    var path = normalizePath(chooseSiblingDocumentPath());
+    if (!path) return;
+    if (!validateTargetPath(path)) return;
+    OfficialDocumentConsole.targetPath = path;
+    OfficialDocumentConsole.targetDoc = null;
+    clearSavedSelection();
+    var doc = openDocumentAtPath(path, false);
+    if (!doc) return;
+    runWholeFormatOnDocument(doc);
   }
 
   function ConsoleOpenTargetDocument() {
-    if (openTargetDocument()) alertMessage("目标文档已打开并切换到前台。");
+    if (openTargetDocument()) alertMessage("\u76ee\u6807\u6587\u6863\u5df2\u6253\u5f00\u5e76\u5207\u6362\u5230\u524d\u53f0\u3002");
   }
 
   function ConsoleUseActiveDocument() {
+    ensureOfficialDocumentConsole();
     var doc = currentDocument();
     if (!doc) {
-      alertMessage("未找到当前活动文档。");
+      alertMessage("\u672a\u627e\u5230\u5f53\u524d\u6d3b\u52a8\u6587\u6863\u3002");
       return;
     }
     var name = documentName(doc);
-    if (/公文格式化控制台/i.test(name)) {
-      alertMessage("当前活动文档疑似控制台模板，不能设为目标。请切换到需要格式化的公文，或使用“选择目标文档”。");
-      return;
+    if (sameDocument(doc, controllerDocument()) || isConsoleDocumentName(name) || documentHasConsoleMacroButton(doc)) {
+      var chosen = chooseOpenTargetDocument(false, "\u8bbe\u4e3a\u76ee\u6807");
+      if (!chosen) return;
+      doc = chosen.doc;
+      name = documentName(doc);
     }
-    if (!askYesNo("确认将以下当前活动文档设为目标？\n" + name, "公文格式控制台")) return;
+    if (!askYesNo("\u786e\u8ba4\u5c06\u4ee5\u4e0b\u5f53\u524d\u6d3b\u52a8\u6587\u6863\u8bbe\u4e3a\u76ee\u6807\uff1f\n" + name, "\u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0")) return;
     OfficialDocumentConsole.targetDoc = doc;
     OfficialDocumentConsole.targetPath = documentPath(doc);
     clearSavedSelection();
     var captured = captureSelectionForDocument(doc, false);
     alertMessage(captured ?
-      "已将当前活动文档设为目标文档，并记录了当前选区。" :
-      "已将当前活动文档设为目标文档。需要局部格式化时，请先选中段落并记录当前选区。");
+      "\u5df2\u8bbe\u4e3a\u76ee\u6807\u6587\u6863\uff0c\u5e76\u8bc6\u522b\u5230\u5f53\u524d\u9009\u533a\u3002" :
+      "\u5df2\u8bbe\u4e3a\u76ee\u6807\u6587\u6863\u3002");
+  }
+
+  function ConsoleChooseOpenDocument() {
+    var chosen = chooseOpenTargetDocument(false, "\u8bbe\u4e3a\u76ee\u6807");
+    if (!chosen) return;
+    alertMessage("\u5df2\u9009\u62e9\u6253\u5f00\u7684\u76ee\u6807\u6587\u6863\uff1a\n" + documentName(chosen.doc));
   }
 
   function ConsoleCaptureTargetSelection() {
-    var doc = OfficialDocumentConsole.targetDoc;
-    if (!doc) {
-      alertMessage("请先选择目标文档，或在目标文档中运行“当前文档设为目标”。");
-      return;
-    }
-    captureSelectionForDocument(doc, true);
+    var chosen = chooseOpenTargetDocument(true, "\u8bc6\u522b\u5f53\u524d\u9009\u533a");
+    if (!chosen) return;
+    captureSelectionForDocument(chosen.doc, true);
   }
 
   function ConsoleFormatTargetDocument() {
     var doc = targetDocument();
     if (!doc) return;
-    formatWholeDocument();
+    runWholeFormatOnDocument(doc);
+  }
+
+  function ConsoleShowTargetDocument() {
+    ensureOfficialDocumentConsole();
+    var target = OfficialDocumentConsole.targetDoc;
+    var path = OfficialDocumentConsole.targetPath;
+    if (target) {
+      alertMessage("\u5f53\u524d\u76ee\u6807\u6587\u6863\uff1a\n" + documentName(target) + (path ? "\n" + path : ""));
+      return;
+    }
+    if (path) {
+      alertMessage("\u5f53\u524d\u76ee\u6807\u6587\u6863\u8def\u5f84\uff1a\n" + path);
+      return;
+    }
+    alertMessage("\u5c1a\u672a\u8bbe\u7f6e\u76ee\u6807\u6587\u6863\u3002");
   }
 
   function ConsoleApplyTitleFormat() { applyTargetSelection("title"); }
@@ -1206,56 +1741,72 @@
   function ConsoleApplyAttachmentSequenceFormat() { applyTargetSelection("attachmentSequence"); }
   function ConsoleApplyAttachmentTitleFormat() { applyTargetSelection("attachmentTitle"); }
   function ConsoleApplyPageNumberFormat() {
-    var doc = targetDocument();
-    if (!doc) return;
-    applyCenteredPageNumbers(doc);
-    alertMessage("目标文档页码格式化完成");
+    var target = chooseOpenTargetDocument(false, "\u5c45\u4e2d\u9875\u7801");
+    if (!target) return;
+    applyCenteredPageNumbers(target.doc);
+    alertMessage("\u5df2\u5bf9\u4ee5\u4e0b\u6587\u6863\u5e94\u7528\u5c45\u4e2d\u9875\u7801\uff1a\n" + documentName(target.doc));
   }
 
   function ConsoleRunMenu() {
+    ensureOfficialDocumentConsole();
     var menu =
-      "请输入操作序号：\n" +
-      "0  将当前活动文档设为目标\n" +
-      "1  选择目标文档\n" +
-      "2  打开目标文档\n" +
-      "3  全文格式化\n" +
-      "4  大标题\n" +
-      "5  主送单位\n" +
-      "6  正文\n" +
-      "7  一级标题\n" +
-      "8  二级标题\n" +
-      "9  三级标题\n" +
-      "10 四级标题\n" +
-      "11 一是/二是加粗\n" +
-      "12 成文日期\n" +
-      "13 落款单位\n" +
-      "14 附件说明\n" +
-      "15 附件说明续行\n" +
-      "16 附件序号\n" +
-      "17 附件标题\n" +
-      "18 居中页码\n" +
-      "19 记录当前选区";
+      "\u8bf7\u8f93\u5165\u64cd\u4f5c\u5e8f\u53f7\uff1a\n" +
+      "0  \u540c\u76ee\u5f55\u9009\u62e9\u5e76\u5168\u6587\u683c\u5f0f\u5316\n" +
+      "1  \u540c\u76ee\u5f55\u9009\u62e9\u76ee\u6807\u6587\u6863\n" +
+      "2  \u6253\u5f00\u76ee\u6807\u6587\u6863\n" +
+      "3  \u5168\u6587\u683c\u5f0f\u5316\n" +
+      "20 \u540c\u76ee\u5f55\u9009\u62e9\u5e76\u5168\u6587\u683c\u5f0f\u5316\n" +
+      "22 \u4ece\u5df2\u6253\u5f00\u6587\u6863\u4e2d\u9009\u62e9\u76ee\u6807\n" +
+      "4  \u5927\u6807\u9898\n" +
+      "5  \u4e3b\u9001\u5355\u4f4d\n" +
+      "6  \u6b63\u6587\n" +
+      "7  \u4e00\u7ea7\u6807\u9898\n" +
+      "8  \u4e8c\u7ea7\u6807\u9898\n" +
+      "9  \u4e09\u7ea7\u6807\u9898\n" +
+      "10 \u56db\u7ea7\u6807\u9898\n" +
+      "11 \u4e00\u662f/\u4e8c\u662f\u52a0\u7c97\n" +
+      "12 \u6210\u6587\u65e5\u671f\n" +
+      "13 \u843d\u6b3e\u5355\u4f4d\n" +
+      "14 \u9644\u4ef6\u8bf4\u660e\n" +
+      "15 \u9644\u4ef6\u8bf4\u660e\u7eed\u884c\n" +
+      "16 \u9644\u4ef6\u5e8f\u53f7\n" +
+      "17 \u9644\u4ef6\u6807\u9898\n" +
+      "18 \u5c45\u4e2d\u9875\u7801\n" +
+      "19 \u8bc6\u522b\u5df2\u6253\u5f00\u6587\u6863\u7684\u5f53\u524d\u9009\u533a\n" +
+      "21 \u67e5\u770b\u5f53\u524d\u76ee\u6807";
     var choice = trimText(consoleInput(menu, ""));
     if (!choice) return;
-    if (choice === "0") ConsoleUseActiveDocument();
-    else if (choice === "1") ConsoleSelectTargetDocument();
-    else if (choice === "2") ConsoleOpenTargetDocument();
-    else if (choice === "3") ConsoleFormatTargetDocument();
-    else if (choice === "4") ConsoleApplyTitleFormat();
-    else if (choice === "5") ConsoleApplyMainRecipientFormat();
-    else if (choice === "6") ConsoleApplyBodyFormat();
-    else if (choice === "7") ConsoleApplyLevel1HeadingFormat();
-    else if (choice === "8") ConsoleApplyLevel2HeadingFormat();
-    else if (choice === "9") ConsoleApplyLevel3HeadingFormat();
-    else if (choice === "10") ConsoleApplyLevel4HeadingFormat();
-    else if (choice === "11") ConsoleApplyYiShiFormat();
-    else if (choice === "12") ConsoleApplyDateFormat();
-    else if (choice === "13") ConsoleApplySignatureFormat();
-    else if (choice === "14") ConsoleApplyAttachmentNoteFormat();
-    else if (choice === "15") ConsoleApplyAttachmentNoteContinuationFormat();
-    else if (choice === "16") ConsoleApplyAttachmentSequenceFormat();
-    else if (choice === "17") ConsoleApplyAttachmentTitleFormat();
-    else if (choice === "18") ConsoleApplyPageNumberFormat();
-    else if (choice === "19") ConsoleCaptureTargetSelection();
-    else alertMessage("未知操作序号：" + choice);
+    switch (choice) {
+      case "0": ConsoleSelectAndFormatDocument(); break;
+      case "1": ConsoleSelectTargetDocument(); break;
+      case "2": ConsoleOpenTargetDocument(); break;
+      case "3": ConsoleFormatTargetDocument(); break;
+      case "4": ConsoleApplyTitleFormat(); break;
+      case "5": ConsoleApplyMainRecipientFormat(); break;
+      case "6": ConsoleApplyBodyFormat(); break;
+      case "7": ConsoleApplyLevel1HeadingFormat(); break;
+      case "8": ConsoleApplyLevel2HeadingFormat(); break;
+      case "9": ConsoleApplyLevel3HeadingFormat(); break;
+      case "10": ConsoleApplyLevel4HeadingFormat(); break;
+      case "11": ConsoleApplyYiShiFormat(); break;
+      case "12": ConsoleApplyDateFormat(); break;
+      case "13": ConsoleApplySignatureFormat(); break;
+      case "14": ConsoleApplyAttachmentNoteFormat(); break;
+      case "15": ConsoleApplyAttachmentNoteContinuationFormat(); break;
+      case "16": ConsoleApplyAttachmentSequenceFormat(); break;
+      case "17": ConsoleApplyAttachmentTitleFormat(); break;
+      case "18": ConsoleApplyPageNumberFormat(); break;
+      case "19": ConsoleCaptureTargetSelection(); break;
+      case "20": ConsoleSelectAndFormatDocument(); break;
+      case "21": ConsoleShowTargetDocument(); break;
+      case "22": ConsoleChooseOpenDocument(); break;
+      default: alertMessage("\u672a\u77e5\u64cd\u4f5c\u5e8f\u53f7\uff1a" + choice);
+    }
+  }
+
+  function ConsoleSyntaxCheck() {
+    ensureOfficialDocumentFormatter();
+    ensureOfficialDocumentConsole();
+    controllerDocument();
+    alertMessage("\u516c\u6587\u683c\u5f0f\u63a7\u5236\u53f0\u811a\u672c\u5df2\u5b8c\u6574\u52a0\u8f7d\u3002");
   }
