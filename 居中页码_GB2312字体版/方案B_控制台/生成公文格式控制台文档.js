@@ -265,7 +265,7 @@ const documentCommands = [
   { label: "选择已打开文档", macro: "ConsoleChooseOpenDocument" },
   { label: "查看当前目标", macro: "ConsoleShowTargetDocument" },
   { label: "脚本自检", macro: "ConsoleSyntaxCheck" },
-  { label: "表格字体", macro: "ConsoleApplyTableTextFormat" },
+  { label: "表格字体字号", macro: "ConsoleApplyTableTextFormat" },
   { label: "脚注字体", macro: "ConsoleApplyFootnoteTextFormat" },
   { label: "居中页码", macro: "ConsoleApplyPageNumberFormat" },
 ];

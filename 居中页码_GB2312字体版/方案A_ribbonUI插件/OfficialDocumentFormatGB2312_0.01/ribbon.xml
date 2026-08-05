@@ -72,7 +72,7 @@
         </group>
         <group id="grpOfficialDocumentObjects" label="表格与脚注">
           <button id="btnApplyTableText"
-                  label="设置表格中英文字体"
+                  label="设置表格字体和字号"
                   imageMso="TableInsert"
                   onAction="ApplyTableTextFormat" />
           <button id="btnApplyFootnoteText"

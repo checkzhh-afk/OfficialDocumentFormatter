@@ -17,6 +17,8 @@
     CONST.FONT_PAGE_NUMBER = "\u5b8b\u4f53";
     CONST.SIZE_BODY = 16;
     CONST.SIZE_TITLE = 22;
+    CONST.SIZE_TABLE = 14;
+    CONST.SIZE_FOOTNOTE = 12;
     CONST.SIZE_PAGE_NUMBER = 14;
     CONST.PAGE_NUMBER_GAP_MM = 7;
     CONST.PAGE_NUMBER_TOP_OFFSET_PT = 11;
@@ -52,6 +54,7 @@
     OfficialDocumentFormatter.attachmentNoteContinuationIndent = attachmentNoteContinuationIndent;
     OfficialDocumentFormatter.signatureLeftIndent = signatureLeftIndent;
     OfficialDocumentFormatter.classifyDocument = classifyDocument;
+    OfficialDocumentFormatter.applyRecognizedSignatures = applyRecognizedSignatures;
     OfficialDocumentFormatter.formatTableFonts = formatTableFonts;
     OfficialDocumentFormatter.formatFootnoteFonts = formatFootnoteFonts;
   }
@@ -279,21 +282,31 @@
     return -1;
   }
 
-  function findDateIndex(items, endIndex) {
+  function findDateIndexInRange(items, startIndex, endIndex) {
     var idx = -1;
+    var start = typeof startIndex === "number" && startIndex >= 0 ? startIndex : 0;
     var end = typeof endIndex === "number" && endIndex >= 0 ? endIndex : items.length;
-    for (var i = 0; i < end; i++) {
+    for (var i = start; i < end; i++) {
       if (isDateText(items[i].text)) idx = i;
     }
     return idx;
   }
 
-  function findSignatureIndex(items, dateIndex) {
-    if (dateIndex <= 0) return -1;
-    for (var i = dateIndex - 1; i >= 0; i--) {
+  function findDateIndex(items, endIndex) {
+    return findDateIndexInRange(items, 0, endIndex);
+  }
+
+  function findSignatureIndexInRange(items, dateIndex, startIndex) {
+    var start = typeof startIndex === "number" && startIndex >= 0 ? startIndex : 0;
+    if (dateIndex <= start) return -1;
+    for (var i = dateIndex - 1; i >= start; i--) {
       if (trimText(items[i].text)) return i;
     }
     return -1;
+  }
+
+  function findSignatureIndex(items, dateIndex) {
+    return findSignatureIndexInRange(items, dateIndex, 0);
   }
 
   function findAttachmentNoteIndexes(items, dateIndex) {
@@ -367,6 +380,33 @@
     return { sequenceIndexes: sequenceIndexes, titleIndexes: titleIndexes };
   }
 
+  function findAttachmentSignatures(items, attachmentBody) {
+    var pairs = [];
+    for (var i = 0; i < attachmentBody.sequenceIndexes.length; i++) {
+      var sequenceIndex = attachmentBody.sequenceIndexes[i];
+      var endIndex = i + 1 < attachmentBody.sequenceIndexes.length ?
+        attachmentBody.sequenceIndexes[i + 1] : items.length;
+      var startIndex = sequenceIndex + 1;
+      for (var t = 0; t < attachmentBody.titleIndexes.length; t++) {
+        var titleIndex = attachmentBody.titleIndexes[t];
+        if (titleIndex > sequenceIndex && titleIndex < endIndex) {
+          startIndex = titleIndex + 1;
+          break;
+        }
+      }
+      var attachmentDateIndex = findDateIndexInRange(items, startIndex, endIndex);
+      var attachmentSignatureIndex =
+        findSignatureIndexInRange(items, attachmentDateIndex, startIndex);
+      if (attachmentSignatureIndex >= 0 && attachmentDateIndex >= 0) {
+        pairs.push({
+          signatureIndex: attachmentSignatureIndex,
+          dateIndex: attachmentDateIndex
+        });
+      }
+    }
+    return pairs;
+  }
+
   function classifyDocument(items) {
     ensureOfficialDocumentFormatter();
     var titleIndexes = findTitleIndexes(items);
@@ -375,6 +415,13 @@
     var attachmentStartIndex = attachmentBody.sequenceIndexes.length ? attachmentBody.sequenceIndexes[0] : items.length;
     var dateIndex = findDateIndex(items, attachmentStartIndex);
     var signatureIndex = findSignatureIndex(items, dateIndex);
+    var attachmentSignatures = findAttachmentSignatures(items, attachmentBody);
+    var attachmentSignatureMap = {};
+    var attachmentDateMap = {};
+    for (var a = 0; a < attachmentSignatures.length; a++) {
+      attachmentSignatureMap[attachmentSignatures[a].signatureIndex] = true;
+      attachmentDateMap[attachmentSignatures[a].dateIndex] = true;
+    }
     var attachmentNoteIndexes = findAttachmentNoteIndexes(items, dateIndex);
     var attachmentNoteContinuationIndexes = findAttachmentNoteContinuationIndexes(items, dateIndex, attachmentNoteIndexes);
     var start = mainRecipientIndex >= 0 ? mainRecipientIndex + 1 : (titleIndexes.length ? titleIndexes[titleIndexes.length - 1] + 1 : 0);
@@ -389,6 +436,7 @@
       var text = trimText(items[i].text);
       if (!text) continue;
       if (titleIndexes.indexOf(i) >= 0 || i === mainRecipientIndex || i === dateIndex || i === signatureIndex) continue;
+      if (attachmentSignatureMap[i] || attachmentDateMap[i]) continue;
       if (attachmentNoteIndexes.indexOf(i) >= 0 || attachmentNoteContinuationIndexes.indexOf(i) >= 0 || attachmentBody.sequenceIndexes.indexOf(i) >= 0 || attachmentBody.titleIndexes.indexOf(i) >= 0) continue;
       var heading = isHeading(text);
       if (heading) {
@@ -403,6 +451,7 @@
       mainRecipientIndex: mainRecipientIndex,
       dateIndex: dateIndex,
       signatureIndex: signatureIndex,
+      attachmentSignatures: attachmentSignatures,
       attachmentNoteIndexes: attachmentNoteIndexes,
       attachmentNoteContinuationIndexes: attachmentNoteContinuationIndexes,
       attachmentSequenceIndexes: attachmentBody.sequenceIndexes,
@@ -505,14 +554,20 @@
     var tables = [];
     try { tables = collectionToArray(doc.Tables); } catch (e1) {}
     for (var i = 0; i < tables.length; i++) {
-      try { setScriptFonts(tables[i].Range, CONST.FONT_BODY, CONST.FONT_WEST); } catch (e2) {}
+      try {
+        setScriptFonts(tables[i].Range, CONST.FONT_BODY, CONST.FONT_WEST);
+        tables[i].Range.Font.Size = CONST.SIZE_TABLE;
+      } catch (e2) {}
     }
   }
 
   function formatNoteCollection(notes) {
     var items = collectionToArray(notes);
     for (var i = 0; i < items.length; i++) {
-      try { setScriptFonts(items[i].Range, CONST.FONT_BODY, CONST.FONT_WEST); } catch (e1) {}
+      try {
+        setScriptFonts(items[i].Range, CONST.FONT_BODY, CONST.FONT_WEST);
+        items[i].Range.Font.Size = CONST.SIZE_FOOTNOTE;
+      } catch (e1) {}
     }
   }
 
@@ -624,6 +679,22 @@
     if (!textRange) return;
     setFont(textRange, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, false);
     setParagraph(paragraph, CONST.WD_ALIGN_LEFT, leftIndent, 0, 0);
+  }
+
+  function applyRecognizedSignatures(items, result, doc) {
+    if (result.dateIndex >= 0) applyNamedFormat(items[result.dateIndex].paragraph, "date");
+    if (result.signatureIndex >= 0 && result.dateIndex >= 0) {
+      applySignatureFormat(items[result.signatureIndex].paragraph, items[result.dateIndex].text, doc);
+    }
+    for (var i = 0; i < result.attachmentSignatures.length; i++) {
+      var attachmentSignature = result.attachmentSignatures[i];
+      applyNamedFormat(items[attachmentSignature.dateIndex].paragraph, "date");
+      applySignatureFormat(
+        items[attachmentSignature.signatureIndex].paragraph,
+        items[attachmentSignature.dateIndex].text,
+        doc
+      );
+    }
   }
 
   function recognizedDateText(doc) {
@@ -775,12 +846,23 @@
     setParagraph(items[blankIndex].paragraph, CONST.WD_ALIGN_LEFT, 0, 0, 0);
   }
 
-  function normalizeBlankLineBeforeSignature(items, result) {
-    if (result.signatureIndex < 0 || result.dateIndex < 0) return false;
-    var previousIndex = previousNonEmptyIndex(items, result.signatureIndex - 1);
+  function signaturePairs(result) {
+    var pairs = [];
+    if (result.signatureIndex >= 0 && result.dateIndex >= 0) {
+      pairs.push({ signatureIndex: result.signatureIndex, dateIndex: result.dateIndex });
+    }
+    for (var i = 0; i < result.attachmentSignatures.length; i++) {
+      pairs.push(result.attachmentSignatures[i]);
+    }
+    pairs.sort(function (a, b) { return b.signatureIndex - a.signatureIndex; });
+    return pairs;
+  }
+
+  function normalizeBlankLineBeforeSignaturePair(items, pair) {
+    var previousIndex = previousNonEmptyIndex(items, pair.signatureIndex - 1);
     if (previousIndex < 0) return false;
     var changed = false;
-    for (var i = result.signatureIndex - 1; i > previousIndex; i--) {
+    for (var i = pair.signatureIndex - 1; i > previousIndex; i--) {
       if (!trimText(items[i].text) && !items[i].hasBreak) {
         if (deleteParagraph(items[i].paragraph)) changed = true;
       }
@@ -790,13 +872,25 @@
     return changed;
   }
 
+  function normalizeBlankLineBeforeSignature(items, result) {
+    var pairs = signaturePairs(result);
+    var changed = false;
+    for (var i = 0; i < pairs.length; i++) {
+      if (normalizeBlankLineBeforeSignaturePair(items, pairs[i])) changed = true;
+    }
+    return changed;
+  }
+
   function formatBlankLineBeforeSignature(items, result) {
-    if (result.signatureIndex < 0 || result.dateIndex < 0) return;
-    for (var i = result.signatureIndex - 1; i >= 0 && i >= result.signatureIndex - 2; i--) {
-      if (trimText(items[i].text)) continue;
-      if (!canFormatParagraph(items[i].paragraph)) continue;
-      setFont(items[i].paragraph.Range, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, false);
-      setParagraph(items[i].paragraph, CONST.WD_ALIGN_LEFT, 0, 0, 0);
+    var pairs = signaturePairs(result);
+    for (var p = 0; p < pairs.length; p++) {
+      for (var i = pairs[p].signatureIndex - 1;
+        i >= 0 && i >= pairs[p].signatureIndex - 2; i--) {
+        if (trimText(items[i].text)) continue;
+        if (!canFormatParagraph(items[i].paragraph)) continue;
+        setFont(items[i].paragraph.Range, CONST.FONT_BODY, CONST.FONT_WEST, CONST.SIZE_BODY, false);
+        setParagraph(items[i].paragraph, CONST.WD_ALIGN_LEFT, 0, 0, 0);
+      }
     }
   }
 
@@ -856,7 +950,7 @@
     var setup = null;
     try { setup = section.PageSetup; } catch (e1) {}
     if (!setup) return;
-    try { setup.OddAndEvenPagesHeaderFooter = false; } catch (e2) {}
+    try { setup.OddAndEvenPagesHeaderFooter = true; } catch (e2) {}
     var bottomMargin = millimetersToPoints(35);
     try {
       var currentBottomMargin = Number(setup.BottomMargin);
@@ -872,19 +966,15 @@
   }
 
   function centeredPageNumberFooterIsEnabled(section, footerIndex) {
-    if (footerIndex === CONST.WD_HEADER_FOOTER_PRIMARY) return true;
-    if (footerIndex === CONST.WD_HEADER_FOOTER_FIRST_PAGE) {
-      try { return !!section.PageSetup.DifferentFirstPageHeaderFooter; } catch (e1) {}
-    }
-    return false;
+    return footerIsEnabled(section, footerIndex);
   }
 
   function formatPageField(field, alignment) {
     if (!field) return;
     try {
       var pageRange = field.Result;
-      pageRange.InsertBefore("\u2014 ");
-      pageRange.InsertAfter(" \u2014");
+      pageRange.InsertBefore("\u2014");
+      pageRange.InsertAfter("\u2014");
       setFont(pageRange, CONST.FONT_PAGE_NUMBER, CONST.FONT_PAGE_NUMBER,
         CONST.SIZE_PAGE_NUMBER, false);
       var paragraphFormat = pageRange.ParagraphFormat;
@@ -1003,10 +1093,7 @@
     formatBlankLinesBeforeTitle(items, result);
     formatBlankLineAfterTitle(items, result);
     if (result.mainRecipientIndex >= 0) applyNamedFormat(items[result.mainRecipientIndex].paragraph, "mainRecipient");
-    if (result.dateIndex >= 0) applyNamedFormat(items[result.dateIndex].paragraph, "date");
-    if (result.signatureIndex >= 0 && result.dateIndex >= 0) {
-      applySignatureFormat(items[result.signatureIndex].paragraph, items[result.dateIndex].text, doc);
-    }
+    applyRecognizedSignatures(items, result, doc);
     formatBlankLineBeforeSignature(items, result);
     for (var n = 0; n < result.attachmentNoteIndexes.length; n++) {
       applyNamedFormat(items[result.attachmentNoteIndexes[n]].paragraph, "attachmentNote");
@@ -1085,7 +1172,7 @@
   function ApplyTableTextFormat() {
     ensureOfficialDocumentFormatter();
     formatTableFonts(currentDocument());
-    alertMessage("\u8868\u683c\u5b57\u4f53\u683c\u5f0f\u5316\u5b8c\u6210");
+    alertMessage("\u8868\u683c\u5b57\u4f53\u548c\u5b57\u53f7\u683c\u5f0f\u5316\u5b8c\u6210");
   }
   function ApplyFootnoteTextFormat() {
     ensureOfficialDocumentFormatter();
@@ -1824,11 +1911,11 @@
   function ConsoleApplyAttachmentSequenceFormat() { applyTargetSelection("attachmentSequence"); }
   function ConsoleApplyAttachmentTitleFormat() { applyTargetSelection("attachmentTitle"); }
   function ConsoleApplyTableTextFormat() {
-    var target = chooseOpenTargetDocument(false, "\u8868\u683c\u5b57\u4f53");
+    var target = chooseOpenTargetDocument(false, "\u8868\u683c\u5b57\u4f53\u5b57\u53f7");
     if (!target) return;
     ensureOfficialDocumentFormatter();
     formatTableFonts(target.doc);
-    alertMessage("\u5df2\u5bf9\u4ee5\u4e0b\u6587\u6863\u7684\u8868\u683c\u8bbe\u7f6e\u4e2d\u82f1\u6587\u5b57\u4f53\uff1a\n" + documentName(target.doc));
+    alertMessage("\u5df2\u5bf9\u4ee5\u4e0b\u6587\u6863\u7684\u8868\u683c\u8bbe\u7f6e\u4e2d\u82f1\u6587\u5b57\u4f53\u548c\u56db\u53f7\u5b57\u53f7\uff1a\n" + documentName(target.doc));
   }
   function ConsoleApplyFootnoteTextFormat() {
     var target = chooseOpenTargetDocument(false, "\u811a\u6ce8\u5b57\u4f53");
