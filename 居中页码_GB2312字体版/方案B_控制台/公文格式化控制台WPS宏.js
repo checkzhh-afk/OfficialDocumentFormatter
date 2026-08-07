@@ -928,12 +928,54 @@
     return false;
   }
 
-  function removeExistingPageFields(footer) {
+  function rangeHasPageField(range) {
     var fields = [];
-    try { fields = collectionToArray(footer.Range.Fields); } catch (e1) {}
-    for (var i = fields.length - 1; i >= 0; i--) {
-      if (!isPageField(fields[i])) continue;
-      try { fields[i].Delete(); } catch (e2) {}
+    try { fields = collectionToArray(range.Fields); } catch (e1) {}
+    for (var i = 0; i < fields.length; i++) {
+      if (isPageField(fields[i])) return true;
+    }
+    return false;
+  }
+
+  function isManualPageNumberText(text) {
+    var s = trimText(text).replace(/\u00a0/g, " ");
+    if (!s) return false;
+    if (/^(?:[\u2014\u2013\u2212\uFF0D-]\s*)*(?:\d+|[\uFF10-\uFF19]+)(?:\s*(?:\/|of)\s*(?:\d+|[\uFF10-\uFF19]+))?(?:\s*[\u2014\u2013\u2212\uFF0D-])*$/i.test(s)) {
+      return true;
+    }
+    return /^\u7b2c\s*(?:\d+|[\uFF10-\uFF19]+)\s*\u9875(?:\s*(?:\/|\u5171)\s*(?:\d+|[\uFF10-\uFF19]+)\s*\u9875?)?$/.test(s);
+  }
+
+  function clearParagraphContent(paragraph) {
+    if (!paragraph) return;
+    try {
+      var content = paragraph.Range.Duplicate;
+      var text = String(content.Text || "");
+      while (text && /[\r\n\u0007\f]$/.test(text)) {
+        text = text.substring(0, text.length - 1);
+        content.End = content.End - 1;
+      }
+      content.Text = "";
+    } catch (e1) {}
+    try { paragraph.Range.Font.Reset(); } catch (e2) {}
+    try { paragraph.Range.ParagraphFormat.Reset(); } catch (e3) {}
+  }
+
+  function clearExistingPageNumbers(footer) {
+    var paragraphs = [];
+    try { paragraphs = collectionToArray(footer.Range.Paragraphs); } catch (e1) {}
+    for (var i = paragraphs.length - 1; i >= 0; i--) {
+      var text = "";
+      try { text = paragraphs[i].Range.Text; } catch (e2) {}
+      if (rangeHasPageField(paragraphs[i].Range) || isManualPageNumberText(text)) {
+        clearParagraphContent(paragraphs[i]);
+      }
+    }
+    var fields = [];
+    try { fields = collectionToArray(footer.Range.Fields); } catch (e3) {}
+    for (var f = fields.length - 1; f >= 0; f--) {
+      if (!isPageField(fields[f])) continue;
+      try { fields[f].Delete(); } catch (e4) {}
     }
   }
 
@@ -965,51 +1007,108 @@
     try { setup.FooterDistance = footerDistance; } catch (e4) {}
   }
 
-  function centeredPageNumberFooterIsEnabled(section, footerIndex) {
-    return footerIsEnabled(section, footerIndex);
+  function pageNumberAlignment() {
+    return CONST.WD_ALIGN_PAGE_NUMBER_CENTER;
   }
 
-  function formatPageField(field, alignment) {
-    if (!field) return;
+  function paragraphIsEmpty(paragraph) {
+    if (!paragraph) return true;
     try {
-      var pageRange = field.Result;
-      pageRange.InsertBefore("\u2014");
-      pageRange.InsertAfter("\u2014");
-      setFont(pageRange, CONST.FONT_PAGE_NUMBER, CONST.FONT_PAGE_NUMBER,
-        CONST.SIZE_PAGE_NUMBER, false);
-      var paragraphFormat = pageRange.ParagraphFormat;
-      paragraphFormat.Alignment = alignment;
-      paragraphFormat.LeftIndent = 0;
-      paragraphFormat.RightIndent = 0;
-      paragraphFormat.FirstLineIndent = 0;
-      paragraphFormat.SpaceBefore = 0;
-      paragraphFormat.SpaceAfter = 0;
+      if (trimText(paragraph.Range.Text)) return false;
     } catch (e1) {}
+    try {
+      if (Number(paragraph.Range.Fields.Count) > 0) return false;
+    } catch (e2) {}
+    return true;
   }
 
-  function trimTrailingEmptyFooterParagraphs(footer) {
-    if (!footer) return;
+  function preparePageNumberParagraph(footer) {
     var paragraphs = [];
     try { paragraphs = collectionToArray(footer.Range.Paragraphs); } catch (e1) {}
-    if (paragraphs.length < 2) return;
-    var lastContentIndex = -1;
+    var emptyParagraph = null;
+    var hasContent = false;
     for (var i = 0; i < paragraphs.length; i++) {
-      var text = "";
-      var fieldCount = 0;
-      try { text = trimText(paragraphs[i].Range.Text); } catch (e2) {}
-      try { fieldCount = Number(paragraphs[i].Range.Fields.Count) || 0; } catch (e3) {}
-      if (text || fieldCount > 0) lastContentIndex = i;
+      if (paragraphIsEmpty(paragraphs[i])) emptyParagraph = paragraphs[i];
+      else hasContent = true;
     }
-    if (lastContentIndex < 0 || lastContentIndex >= paragraphs.length - 1) return;
+    if (!hasContent) {
+      try { footer.Range.Text = ""; } catch (e2) {}
+      try { paragraphs = collectionToArray(footer.Range.Paragraphs); } catch (e3) {}
+      return paragraphs.length ? paragraphs[0] : null;
+    }
+    if (emptyParagraph) return emptyParagraph;
     try {
-      var trailingRange = footer.Range.Duplicate;
-      trailingRange.Start = paragraphs[lastContentIndex].Range.End;
-      trailingRange.End = footer.Range.End;
-      trailingRange.Text = "";
+      var appendRange = footer.Range.Duplicate;
+      if (appendRange.End > appendRange.Start) appendRange.End = appendRange.End - 1;
+      appendRange.Start = appendRange.End;
+      appendRange.InsertAfter("\r");
     } catch (e4) {}
+    try { paragraphs = collectionToArray(footer.Range.Paragraphs); } catch (e5) {}
+    return paragraphs.length ? paragraphs[paragraphs.length - 1] : null;
   }
 
-  function applyCenteredPageNumbers(doc) {
+  function setPageNumberParagraphText(paragraph) {
+    if (!paragraph) return;
+    var content = paragraph.Range.Duplicate;
+    var text = "";
+    try { text = String(content.Text || ""); } catch (e1) {}
+    while (text && /[\r\n\u0007\f]$/.test(text)) {
+      text = text.substring(0, text.length - 1);
+      content.End = content.End - 1;
+    }
+    content.Text = "\u2014\u2014";
+  }
+
+  function formatPageNumberParagraph(paragraph, alignment) {
+    if (!paragraph) return;
+    var range = paragraph.Range;
+    try { range.Font.Reset(); } catch (e1) {}
+    try { range.ParagraphFormat.Reset(); } catch (e2) {}
+    setFont(range, CONST.FONT_PAGE_NUMBER, CONST.FONT_PAGE_NUMBER,
+      CONST.SIZE_PAGE_NUMBER, false);
+    var paragraphFormat = range.ParagraphFormat;
+    try { paragraphFormat.Alignment = alignment; } catch (e3) {}
+    try { paragraphFormat.CharacterUnitLeftIndent = 0; } catch (e4) {}
+    try { paragraphFormat.CharacterUnitRightIndent = 0; } catch (e5) {}
+    try { paragraphFormat.CharacterUnitFirstLineIndent = 0; } catch (e6) {}
+    try { paragraphFormat.LeftIndent = 0; } catch (e7) {}
+    try { paragraphFormat.RightIndent = 0; } catch (e8) {}
+    try { paragraphFormat.FirstLineIndent = 0; } catch (e9) {}
+    try { paragraphFormat.SpaceBefore = 0; } catch (e10) {}
+    try { paragraphFormat.SpaceAfter = 0; } catch (e11) {}
+    try { paragraphFormat.LineSpacingRule = 0; } catch (e12) {}
+  }
+
+  function addOfficialPageNumber(footer, alignment) {
+    var paragraph = preparePageNumberParagraph(footer);
+    if (!paragraph) return false;
+    clearParagraphContent(paragraph);
+    setPageNumberParagraphText(paragraph);
+    var paragraphRange = paragraph.Range.Duplicate;
+    var insertion = paragraph.Range.Duplicate;
+    insertion.Start = paragraphRange.Start + 1;
+    insertion.End = insertion.Start;
+    var field = null;
+    try { field = paragraph.Range.Fields.Add(insertion, CONST.WD_FIELD_PAGE); } catch (e1) {}
+    if (!field) {
+      try { field = footer.Range.Fields.Add(insertion, CONST.WD_FIELD_PAGE); } catch (e2) {}
+    }
+    if (!field) return false;
+    try { field.Update(); } catch (e3) {}
+    formatPageNumberParagraph(paragraph, alignment);
+    return true;
+  }
+
+  function updateFooterPageFields(footer) {
+    var fields = [];
+    try { fields = collectionToArray(footer.Range.Fields); } catch (e1) {}
+    for (var i = 0; i < fields.length; i++) {
+      if (!isPageField(fields[i])) continue;
+      try { fields[i].Update(); } catch (e2) {}
+    }
+  }
+
+  function applyOfficialPageNumbers(doc) {
     ensureOfficialDocumentFormatter();
     var sections = collectionToArray(doc.Sections);
     var footerIndexes = [
@@ -1024,27 +1123,29 @@
         var footer = footerByIndex(sections[i], footerIndex);
         if (!footer) continue;
         try { footer.LinkToPrevious = false; } catch (e1) {}
-        removeExistingPageFields(footer);
-        if (!centeredPageNumberFooterIsEnabled(sections[i], footerIndex)) continue;
-        var alignment = CONST.WD_ALIGN_PAGE_NUMBER_CENTER;
+        clearExistingPageNumbers(footer);
+        if (!footerIsEnabled(sections[i], footerIndex)) continue;
+        var alignment = pageNumberAlignment();
         try {
           var pageNumbers = footer.PageNumbers;
           try { pageNumbers.RestartNumberingAtSection = false; } catch (e2) {}
-          pageNumbers.Add(alignment, true);
         } catch (e3) {}
-        try {
-          var fields = collectionToArray(footer.Range.Fields);
-          for (var f = 0; f < fields.length; f++) {
-            if (isPageField(fields[f])) formatPageField(fields[f], alignment);
-          }
-        } catch (e4) {}
-        trimTrailingEmptyFooterParagraphs(footer);
+        if (!addOfficialPageNumber(footer, alignment)) {
+          throw new Error("\u65e0\u6cd5\u5728\u9875\u811a\u4e2d\u521b\u5efa\u9875\u7801\u5b57\u6bb5\u3002");
+        }
+      }
+    }
+    try { doc.Repaginate(); } catch (e4) {}
+    for (var s = 0; s < sections.length; s++) {
+      for (var h = 0; h < footerIndexes.length; h++) {
+        var updatedFooter = footerByIndex(sections[s], footerIndexes[h]);
+        if (updatedFooter) updateFooterPageFields(updatedFooter);
       }
     }
   }
 
-  function applyOfficialPageNumbers(doc) {
-    applyCenteredPageNumbers(doc);
+  function applyCenteredPageNumbers(doc) {
+    applyOfficialPageNumbers(doc);
   }
 
   function askYesNo(message, title) {
@@ -1292,7 +1393,27 @@
   function pathFolder(path) {
     var normalized = normalizePath(path);
     var index = normalized.lastIndexOf("/");
+    if (index === 0 && normalized.charAt(0) === "/") return "/";
     return index > 0 ? normalized.substring(0, index) : "";
+  }
+
+  function hostPathSeparator(app, folder) {
+    var separator = "";
+    try { separator = String(app.PathSeparator || ""); } catch (e1) {}
+    if (separator === "/" || separator === String.fromCharCode(92)) return separator;
+    return isWindowsAbsolutePath(normalizePath(folder)) ? String.fromCharCode(92) : "/";
+  }
+
+  function fileDialogInitialFolder(folder, app) {
+    var normalized = normalizePath(folder);
+    if (!normalized) return "";
+    var separator = hostPathSeparator(app, normalized);
+    var result = normalized;
+    if (separator === String.fromCharCode(92)) {
+      result = normalized.replace(/\//g, separator);
+    }
+    if (result.charAt(result.length - 1) !== separator) result += separator;
+    return result;
   }
 
   function pathExtension(path) {
@@ -1422,6 +1543,9 @@
     }
     var folder = "";
     try { folder = normalizePath(controller.Path); } catch (e1) {}
+    if (!folder) {
+      try { folder = pathFolder(documentPath(controller)); } catch (e2) {}
+    }
     if (!folder && showError) {
       alertMessage("\u63a7\u5236\u53f0\u6587\u6863\u5c1a\u672a\u4fdd\u5b58\u5230\u6587\u4ef6\u5939\u3002\u8bf7\u5148\u4fdd\u5b58 DOCM\uff0c\u518d\u6267\u884c\u540c\u76ee\u5f55\u683c\u5f0f\u5316\u3002");
     }
@@ -1506,7 +1630,7 @@
         dialog.Filters.Add("Word/WPS \u6587\u6863", "*.doc;*.docx;*.docm;*.wps;*.wpt");
       } catch (filterError) {}
       try {
-        if (folder) dialog.InitialFileName = folder.replace(/\//g, String.fromCharCode(92)) + String.fromCharCode(92);
+        if (folder) dialog.InitialFileName = fileDialogInitialFolder(folder, app);
       } catch (folderError) {}
       while (true) {
         var result = dialog.Show();
